@@ -1,10 +1,8 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct
+from qdrant_client.models import VectorParams, Distance
 from sentence_transformers import SentenceTransformer
-from pathlib import Path
-
 from pathlib import Path
 import json
 from datetime import datetime
@@ -58,10 +56,6 @@ def rag_query_tool(query: str, top_k: int = 3):
         return []
 
 
-# ---------------------------
-# Mock Action Tools
-# ---------------------------
-
 def tool_order_test(test_name: str) -> Dict[str, Any]:
     """
     Mock test ordering tool.
@@ -109,6 +103,40 @@ def tool_update_emr(payload: Dict[str, Any]) -> Dict[str, Any]:
         "emr_record_id": record["emr_record_id"],
     }
 
+PHARMACY_STORE_PATH = Path(__file__).parent / "pharmacy_orders.json"
+
+def tool_send_to_pharmacy(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Mock Pharmacy integration tool.
+
+    In a real system this would call an e-prescription / pharmacy API.
+    Here we persist an order into pharmacy_orders.json so you can show
+    the full pipeline: Doctor -> EMR -> Pharmacy.
+    """
+    order = {
+        "order_id": f"RX-{int(datetime.utcnow().timestamp())}",
+        "timestamp_utc": datetime.utcnow().isoformat() + "Z",
+        "status": "queued_demo",   # e.g. 'queued', 'sent', 'dispensed'
+        **payload,
+    }
+
+    # Load existing orders if file exists
+    orders: list[Dict[str, Any]] = []
+    if PHARMACY_STORE_PATH.exists():
+        try:
+            with PHARMACY_STORE_PATH.open("r", encoding="utf-8") as f:
+                orders = json.load(f)
+        except Exception:
+            orders = []
+
+    # Append new order
+    orders.append(order)
+
+    # Save back to file
+    with PHARMACY_STORE_PATH.open("w", encoding="utf-8") as f:
+        json.dump(orders, f, indent=2, ensure_ascii=False)
+
+    return order
 
 def tool_transcribe_voice(path: str) -> str:
     recognizer = sr.Recognizer()
