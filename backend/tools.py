@@ -1,60 +1,60 @@
 from typing import Dict, Any, List
 
 from qdrant_client import QdrantClient
+from qdrant_client.models import VectorParams, Distance, PointStruct
 from sentence_transformers import SentenceTransformer
-import whisper
+from pathlib import Path
+
 from pathlib import Path
 import json
 from datetime import datetime
-# ---------------------------
-# Qdrant & Embedding Setup
-# ---------------------------
+import speech_recognition as sr
 
-QDRANT_URL = "http://localhost:6333"
-COLLECTION_NAME = "clinical_guidelines"
+QDRANT_PATH = Path("qdrant_local")  
+QDRANT_PATH.mkdir(exist_ok=True)
 
-# Create global clients (loaded once)
-_qdrant_client = QdrantClient(url=QDRANT_URL)
-_embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-_whisper_model = whisper.load_model("base")
+_qdrant_client = QdrantClient(
+    path=str(QDRANT_PATH),
+)
 
-def rag_query_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-    """
-    Retrieves guideline-based suggestions from Qdrant.
-    If Qdrant or the client is misconfigured, it fails gracefully and returns [].
-    """
+_embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+GUIDELINE_COLLECTION = "clinical_guidelines"
+def _ensure_guideline_collection():
+    collections = _qdrant_client.get_collections().collections
+    existing = {c.name for c in collections}
+
+    if GUIDELINE_COLLECTION not in existing:
+        _qdrant_client.recreate_collection(
+            collection_name=GUIDELINE_COLLECTION,
+            vectors_config=VectorParams(
+                size=384,
+                distance=Distance.COSINE
+            )
+        )
+
+def rag_query_tool(query: str, top_k: int = 3):
     try:
-        vec = _embed_model.encode(query)
+        _ensure_guideline_collection()
+        vec = _embedder.encode(query).tolist()
 
-        # Not all qdrant-client versions have the same API.
-        # Safest: only call search() if it exists.
-        if hasattr(_qdrant_client, "search"):
-            results = _qdrant_client.search(
-                collection_name=COLLECTION_NAME,
-                query_vector=vec,
-                limit=top_k,
-            )
-        else:
-            # Older client: skip actual search to avoid crashes in your demo
-            print("⚠️ QdrantClient.search() not available in this version. Returning [].")
-            return []
+        results = _qdrant_client.search(
+            collection_name=GUIDELINE_COLLECTION,
+            query_vector=vec,
+            limit=top_k,
+        )
 
-        formatted: List[Dict[str, Any]] = []
+        output = []
         for r in results:
-            payload = r.payload
-            formatted.append(
-                {
-                    "title": payload.get("title"),
-                    "text": payload.get("text"),
-                    "tags": payload.get("tags"),
-                    "score": r.score,
-                }
-            )
-        return formatted
+            output.append({
+                "text": r.payload.get("text", ""),
+                "source": r.payload.get("source", ""),
+                "score": r.score
+            })
+        return output
 
     except Exception as e:
-        # Do NOT crash the whole API – just log and return no hits.
-        print("🔥 RAG / Qdrant error:", repr(e))
+        print("❌ RAG error:", e)
         return []
 
 
@@ -109,32 +109,27 @@ def tool_update_emr(payload: Dict[str, Any]) -> Dict[str, Any]:
         "emr_record_id": record["emr_record_id"],
     }
 
-try:
-    import whisper
-    _whisper_model = whisper.load_model("tiny")  # you can try "base" later if laptop can handle it
-    print("✅ Whisper STT model loaded (tiny).")
-except Exception as e:
-    _whisper_model = None
-    print("⚠️ Whisper not available. STT will only return a placeholder. Error:", repr(e))
-
 
 def tool_transcribe_voice(path: str) -> str:
-    """
-    Speech-to-text tool.
-    - If Whisper works: return the actual transcript.
-    - If Whisper fails: return an explicit error sentence.
-    """
-    if _whisper_model is None:
-        print("⚠️ Whisper model not loaded.")
-        return "STT is not available (Whisper model not loaded)."
+    recognizer = sr.Recognizer()
 
     try:
-        result = _whisper_model.transcribe(path)
-        text = (result.get("text") or "").strip()
-        print("🗣️ Whisper transcription:", text)
-        if not text:
-            return "Transcription empty (no speech or decoding issue)."
-        return text
+        with sr.AudioFile(path) as source:
+            audio_data = recognizer.record(source)
+
+        # Uses Google Web Speech API (no key needed for basic use)
+        text = recognizer.recognize_google(audio_data, language="en-US")
+        print("🗣️ Google STT transcription:", text)
+        return text.strip() or "Transcription empty (no speech detected)."
+
+    except sr.UnknownValueError:
+        # Audio was heard but not understandable
+        print("❌ Google STT could not understand audio.")
+        return "STT could not understand the audio clearly."
+    except sr.RequestError as e:
+        # Problem reaching Google STT service
+        print("🔥 Google STT request error:", repr(e))
+        return "STT request failed due to a network or service error."
     except Exception as e:
-        print("🔥 Whisper STT error:", repr(e))
-        return "Transcription failed due to an internal error."
+        print("🔥 General STT backend error:", repr(e))
+        return "Transcription failed due to an internal STT error."

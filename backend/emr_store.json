@@ -10,5 +10,85 @@
     "suggested_tests": [],
     "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: Hello doctor I am not feeling very well right now I have mild fever can you suggest me some medications so that I can take I also have stomach pain also So please suggest Tablets for it...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
     "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764219559",
+    "timestamp_utc": "2025-11-27T10:29:19.067863Z",
+    "patient_id": "P_ID_005",
+    "note_summary": "good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor",
+    "symptoms": [
+      "fever",
+      "headache"
+    ],
+    "suggested_tests": [],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764219779",
+    "timestamp_utc": "2025-11-27T10:32:59.100298Z",
+    "patient_id": "P_ID_005",
+    "note_summary": "good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor",
+    "symptoms": [
+      "fever",
+      "headache"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "MRI Brain (as indicated)",
+      "CT Brain (Non-contrast, if emergency)",
+      "CBC",
+      "Serum Electrolytes"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764233797",
+    "timestamp_utc": "2025-11-27T14:26:37.048133Z",
+    "patient_id": "P001",
+    "note_summary": "Hi doctor And I have a fever for a long time",
+    "symptoms": [
+      "fever"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: Hi doctor And I have a fever for a long time...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764235510",
+    "timestamp_utc": "2025-11-27T14:55:10.027028Z",
+    "patient_id": "P001",
+    "note_summary": "doctor I been feeling tired for the past week how long has it been almost three days you might have a viral infection how prescribed medicines and steam inhalation ok doctor will it get better soon yes usually within three to four days thank you doctor",
+    "symptoms": [],
+    "suggested_tests": [],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I been feeling tired for the past week how long has it been almost three days you might have a viral infection how prescribed medicines and steam inhalation ok doctor will it get better soon ye...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764235514",
+    "timestamp_utc": "2025-11-27T14:55:14.820292Z",
+    "patient_id": "P001",
+    "note_summary": "doctor I been feeling tired for the past week how long has it been almost three days you might have a viral infection how prescribed medicines and steam inhalation ok doctor will it get better soon yes usually within three to four days thank you doctor",
+    "symptoms": [],
+    "suggested_tests": [],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I been feeling tired for the past week how long has it been almost three days you might have a viral infection how prescribed medicines and steam inhalation ok doctor will it get better soon ye...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
   }
 ]
