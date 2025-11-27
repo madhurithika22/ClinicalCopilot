@@ -1,0 +1,14 @@
+[
+  {
+    "emr_record_id": "EMR-1764217995",
+    "timestamp_utc": "2025-11-27T10:03:15.995370Z",
+    "patient_id": "P_LISTEN_001",
+    "note_summary": "Hello doctor I am not feeling very well right now I have mild fever can you suggest me some medications so that I can take I also have stomach pain also So please suggest Tablets for it",
+    "symptoms": [
+      "fever"
+    ],
+    "suggested_tests": [],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: Hello doctor I am not feeling very well right now I have mild fever can you suggest me some medications so that I can take I also have stomach pain also So please suggest Tablets for it...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  }
+]

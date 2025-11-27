@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic==2.9.2
+qdrant-client
+sentence-transformers
+langgraph
+openai-whisper
+opencv-python
+python-multipart
