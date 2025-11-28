@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 from datetime import datetime, timezone
 from .auth import authorize_patient, is_patient_authorized
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -21,6 +21,18 @@ from .schemas import (
 from .graph import run_initial_workflow
 from .tools import tool_update_emr, tool_transcribe_voice, EMR_STORE_PATH, tool_send_to_pharmacy, PHARMACY_STORE_PATH
 from .nodes.hil_node import hil_apply_decision
+from .db import (
+    init_db,
+    SessionLocal,
+    get_or_create_patient,
+    Patient,
+    Encounter,
+    LabResult,
+    RadiologyReport,
+    PharmacyOrder,
+    InsuranceProfile,
+    PatientDoctorAccess
+)
 
 class ApproveEMRRequest(BaseModel):
     patient_id: str
@@ -29,6 +41,9 @@ class ApproveEMRRequest(BaseModel):
     suggested_tests: List[str]
     draft_prescription: str
 app = FastAPI(title="Agentic AI Healthcare Workflow Assistant")
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 class PharmacySendRequest(BaseModel):
     patient_id: str
@@ -37,7 +52,7 @@ class PharmacySendRequest(BaseModel):
     suggested_tests: List[str] = []
     symptoms: List[str] = []
 
-# Simple CORS for frontend demo
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -77,6 +92,62 @@ def get_emr(patient_id: str):
     records.sort(key=_get_ts, reverse=True)
     return records
 
+@app.post("/patient/grant-access")
+def grant_access(patient_id: str, doctor_username: str):
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
+        if not patient:
+            raise HTTPException(404, "No such patient")
+
+        record = (
+            db.query(PatientDoctorAccess)
+              .filter(
+                    PatientDoctorAccess.patient_id == patient.id,
+                    PatientDoctorAccess.doctor_username == doctor_username,
+              )
+              .first()
+        )
+
+        if not record:
+            record = PatientDoctorAccess(
+                patient_id=patient.id,
+                doctor_username=doctor_username,
+                is_allowed=True
+            )
+            db.add(record)
+        else:
+            record.is_allowed = True
+
+        db.commit()
+        return {"status": "ok", "message": "Doctor access granted."}
+    finally:
+        db.close()
+
+@app.post("/patient/revoke-access")
+def revoke_access(patient_id: str, doctor_username: str):
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
+        if not patient:
+            raise HTTPException(404, "No such patient")
+
+        record = (
+            db.query(PatientDoctorAccess)
+              .filter(
+                    PatientDoctorAccess.patient_id == patient.id,
+                    PatientDoctorAccess.doctor_username == doctor_username,
+              )
+              .first()
+        )
+
+        if record:
+            record.is_allowed = False
+            db.commit()
+
+        return {"status": "ok", "message": "Doctor access revoked."}
+    finally:
+        db.close()
 
 @app.get("/get-pharmacy-orders")
 def get_pharmacy_orders(patient_id: Optional[str] = None):
@@ -398,6 +469,20 @@ def dashboard():
       font-size: 0.75rem;
       color: #9ca3af;
     }
+    #ehrDemoBox {
+      font-size: 0.8rem;
+      color: #e5e7eb;
+      line-height: 1.4;
+    }
+
+    .ehr-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+      margin-top: 4px;
+      margin-bottom: 2px;
+    }
 
     .login-card input,
     .login-card select {
@@ -514,6 +599,14 @@ def dashboard():
             Once verified, Step 2 (Listening) and Step 3 (Clinical Brain & EMR) become available for this patient.
           </p>
         </div>
+        <div class="card">
+          <h2>Patient EHR Snapshot</h2>
+          <div id="ehrDemoBox">
+            <p style="font-size:0.8rem;color:#9ca3af;">
+              Verify patient face to load EHR demographics & insurance.
+            </p>
+          </div>
+        </div>
         <div class="card" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;">
           <h3>Patient Camera View</h3>
           <video id="verifyVideo" autoplay muted></video>
@@ -624,6 +717,10 @@ def dashboard():
       <p style="font-size:0.8rem;color:#9ca3af;">
         You are logged in as a patient. You can view your EMR records, but cannot modify them.
       </p>
+      <button id="btnGrantAccess" class="btn btn-primary" style="margin-top:10px;">
+        Grant Doctor Access
+      </button>
+
       <button id="btnPatientLoadEmr" class="btn btn-primary" style="margin-top:8px;">Refresh My EMR</button>
       <div id="patientEmrList" style="margin-top:10px;max-height:320px;overflow-y:auto;font-size:0.8rem;"></div>
     </div>
@@ -712,7 +809,8 @@ def dashboard():
     const btnPharmacyRefresh = document.getElementById("btnPharmacyRefresh");
     const pharmacyPatientFilter = document.getElementById("pharmacyPatientFilter");
     const pharmacyOrdersList = document.getElementById("pharmacyOrdersList");
-
+    const ehrDemoBox = document.getElementById("ehrDemoBox");
+    const btnGrantAccess = document.getElementById("btnGrantAccess");
     // ---------- Demo users ----------
     const USERS = [
       { username: "doc1",   password: "doc123",    role: "doctor"   },
@@ -735,6 +833,31 @@ def dashboard():
     let finalTranscript = "";
 
     // ---------- Helpers ----------
+    if (btnGrantAccess) {
+        btnGrantAccess.onclick = async () => {
+            if (!currentUser || currentRole !== "patient") {
+                setStatus("Only patients can grant access.", "warn");
+                return;
+            }
+            const pid = currentUser.patient_id;
+            const doctorUsername = prompt("Enter Doctor Username to grant access:");
+            if (!doctorUsername) {
+                setStatus("Doctor username required.", "warn");
+                return;
+            }
+            try {
+                const res = await fetch(
+                    `/patient/grant-access?patient_id=${pid}&doctor_username=${doctorUsername}`,
+                    { method: "POST" }
+                );
+                const json = await res.json();
+                setStatus(json.message, "ok");
+            } catch (err) {
+                console.error(err);
+                setStatus("Error granting access: " + err.message, "warn");
+            }
+        };
+    }
     roleSelect.onchange = () => {
       const role = roleSelect.value;
       if (role === "patient") {
@@ -744,6 +867,114 @@ def dashboard():
       }
     };
     roleSelect.onchange(); // set initial state
+    
+    async function loadEhrForPatient(pid) {
+      console.log("LOADING EHR FOR:", pid, "ROLE:", currentRole, "USER:", currentUser);
+
+      ehrDemoBox.innerHTML = "Loading EHR...";
+
+      if (!currentUser || !currentRole) {
+        ehrDemoBox.innerHTML = "Not logged in";
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("role", currentRole);
+      params.set("username", currentUser.username);
+
+      const url = `/ehr/${encodeURIComponent(pid)}?${params.toString()}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error("Backend error " + res.status + ": " + err);
+        }
+        const data = await res.json();
+        renderEhrSummary(data);
+      } catch (err) {
+        ehrDemoBox.innerHTML = "Error loading EHR: " + err.message;
+      }
+    }
+
+
+
+    function renderEhrSummary(ehr) {
+      if (!ehrDemoBox) return;
+
+      if (!ehr || !ehr.exists) {
+        ehrDemoBox.innerHTML =
+          "<p style='font-size:0.8rem;color:#9ca3af;'>No EHR found for this patient.</p>";
+        return;
+      }
+
+      var d = ehr.demographics || {};
+      var ins = ehr.insurance || null;
+
+      var name = d.full_name || ehr.patient_id || "";
+      var dob = d.date_of_birth || "—";
+      var gender = d.gender || "—";
+      var phone = d.phone || "—";
+      var email = d.email || "";
+      var emerg =
+        (d.emergency_contact_name || "—") +
+        " (" +
+        (d.emergency_contact_phone || "—") +
+        ")";
+      var blood = d.blood_group || "—";
+
+      var allergies = d.allergies || [];
+      var chronic = d.chronic_conditions || [];
+      var html = "";
+
+      html += "<p class='ehr-label'>Name</p>";
+      html += "<p>" + name + "</p>";
+
+      html += "<p class='ehr-label'>DOB / Gender</p>";
+      html += "<p>" + dob + " · " + gender + "</p>";
+
+      html += "<p class='ehr-label'>Contact</p>";
+      html += "<p>" + phone + (email ? " · " + email : "") + "</p>";
+
+      html += "<p class='ehr-label'>Emergency Contact</p>";
+      html += "<p>" + emerg + "</p>";
+      if (allergies.length > 0) {
+        html += "<p class='ehr-label'>Allergies</p>";
+        html += "<p>" + allergies.join(", ") + "</p>";
+      }
+
+      if (chronic.length > 0) {
+        html += "<p class='ehr-label'>Chronic Conditions</p>";
+        html += "<p>" + chronic.join(", ") + "</p>";
+      }
+
+      if (ins) {
+        html +=
+          "<hr style='border-color:#1f2937;margin:6px 0;' />";
+        html += "<p class='ehr-label'>Insurance</p>";
+        html +=
+          "<p>" +
+          (ins.provider_name || "") +
+          " · " +
+          (ins.policy_number || "") +
+          "</p>";
+
+        if (ins.coverage_details) {
+          html +=
+            "<p style='font-size:0.75rem;color:#9ca3af;'>" +
+            ins.coverage_details +
+            "</p>";
+        }
+        if (ins.billing_notes) {
+          html +=
+            "<p style='font-size:0.7rem;color:#6b7280;margin-top:2px;'>" +
+            ins.billing_notes +
+            "</p>";
+        }
+      }
+
+      ehrDemoBox.innerHTML = html;
+    }
 
     
     function setStatus(text, type = "info") {
@@ -938,6 +1169,9 @@ def dashboard():
           verifyStatusText.textContent = "Verified";
           verifyStatusText.style.color = "#4ade80";
           setStatus("Patient face verified. You can move to Listening Agents.", "ok");
+          if (ehrDemoBox) {
+            loadEhrForPatient(pid);
+          }
         } else {
           patientVerified = false;
           verifyStatusText.textContent = "Not Verified";
@@ -1687,6 +1921,22 @@ def dashboard():
 </html>
     """
 
+def check_doctor_allowed(db, patient_db_id: int, doctor_username: str) -> bool:
+    """
+    Returns True if this doctor has been granted access
+    to this patient's EHR by the patient portal.
+    """
+    record = (
+        db.query(PatientDoctorAccess)
+        .filter(
+            PatientDoctorAccess.patient_id == patient_db_id,
+            PatientDoctorAccess.doctor_username == doctor_username,
+        )
+        .first()
+    )
+    return bool(record and record.is_allowed)
+
+
 @app.post("/stt-only")
 async def stt_only(audio: UploadFile = File(...)):
     suffix = os.path.splitext(audio.filename or "")[1] or ".wav"
@@ -1706,39 +1956,209 @@ async def stt_only(audio: UploadFile = File(...)):
 
 @app.post("/approve-emr")
 def approve_emr(req: ApproveEMRRequest):
+    """
+    Human-in-the-loop approval endpoint.
+
+    Now:
+    - Enforces biometric gate (face verification)
+    - Persists a full Encounter into the EHR DB (encounters table)
+    - Still returns an emr_record_id for UI
+    """
+    # 1) Biometric gate
     if not is_patient_authorized(req.patient_id):
         raise HTTPException(
             status_code=403,
             detail="Patient face not verified. EMR is locked for this patient."
         )
-    records = []
-    if EMR_STORE_PATH.exists():
-        try:
-            with EMR_STORE_PATH.open("r", encoding="utf-8") as f:
-                records = json.load(f)
-        except Exception:
-            records = []
-    emr_record_id = f"EMR_APPROVED_{len(records) + 1:05d}"
-    now_utc = datetime.now(timezone.utc).isoformat()
 
-    record = {
-        "emr_record_id": emr_record_id,
+    # 2) Write into SQLite EHR DB
+    db = SessionLocal()
+    try:
+        patient = get_or_create_patient(db, req.patient_id)
+
+        encounter_id = f"ENC-{int(datetime.utcnow().timestamp())}"
+
+        encounter = Encounter(
+            encounter_id=encounter_id,
+            patient_id=patient.id,
+            created_at=datetime.utcnow(),
+            doctor_username="doc1",  # TODO: map from login later
+
+            # Clinical data
+            note_summary=req.note_summary,
+            symptoms=req.symptoms,
+            suggested_tests=req.suggested_tests,
+
+            # For now we don't collect these in UI, but you can wire them later:
+            problems=[],
+            medications=[],
+            vitals={},  # you can extend ApproveEMRRequest with vitals field
+            past_medical_history=[],
+
+            prescription=req.draft_prescription,
+            approved_by_doctor=True,
+        )
+
+        db.add(encounter)
+        db.commit()
+        db.refresh(encounter)
+
+        emr_record_id = encounter.encounter_id
+
+    finally:
+        db.close()
+
+    # 3) (Optional) also store to old JSON EMR for backwards-compat UI
+    payload = {
         "record_type": "approved_consultation",
         "patient_id": req.patient_id,
-        "timestamp_utc": now_utc,
         "note_summary": req.note_summary,
         "symptoms": req.symptoms,
         "suggested_tests": req.suggested_tests,
         "draft_prescription": req.draft_prescription,
         "approved_by_doctor": True,
     }
+    tool_update_emr(payload)  # your existing mock EMR tool
 
-    records.append(record)
-    EMR_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with EMR_STORE_PATH.open("w", encoding="utf-8") as f:
-        json.dump(records, f, indent=2, ensure_ascii=False)
-    print("EMR saved to:", EMR_STORE_PATH.resolve())
     return {"status": "ok", "emr_record_id": emr_record_id}
+
+
+@app.get("/ehr/{patient_id}")
+def get_full_ehr(
+    patient_id: str,
+    role: str = Query("doctor"),      # "doctor" | "patient" | "pharmacy"
+    username: str | None = Query(None),
+):
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
+        if not patient:
+            return {
+                "patient_id": patient_id,
+                "exists": False,
+                "message": "No such patient in EHR.",
+            }
+        if not username:
+            raise HTTPException(
+                status_code=400,
+                detail="username query param required (for demo access control).",
+            )
+
+        # 2) Patient portal: can only see their own EHR
+        if role == "patient":
+            pass
+        elif role == "doctor":
+            # (A) Face verification check (your existing gate)
+            if not is_patient_authorized(patient_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Patient face not verified. EHR locked.",
+                )
+            if not check_doctor_allowed(db, patient.id, username):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Patient has not granted you access to this EHR.",
+                )
+
+        # 4) Pharmacy: we could restrict to pharmacy_orders only (later).
+        elif role == "pharmacy":
+            # For now we let it pass; in future, you can trim the payload.
+            pass
+        demo = {
+            "patient_id": patient.patient_id,
+            "full_name": patient.full_name,
+            "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+            "gender": patient.gender,
+            "phone": patient.phone,
+            "email": patient.email,
+            "address": patient.address,
+            "emergency_contact_name": patient.emergency_contact_name,
+            "emergency_contact_phone": patient.emergency_contact_phone,
+            "blood_group": patient.blood_group,
+            "allergies": patient.allergies or [],
+            "chronic_conditions": patient.chronic_conditions or [],
+        }
+
+        # Insurance
+        ins = None
+        if patient.insurance_profile:
+            ins = {
+                "provider_name": patient.insurance_profile.provider_name,
+                "policy_number": patient.insurance_profile.policy_number,
+                "coverage_details": patient.insurance_profile.coverage_details,
+                "billing_notes": patient.insurance_profile.billing_notes,
+            }
+
+        # Encounters
+        encounters_out = []
+        for enc in sorted(patient.encounters, key=lambda e: e.created_at or datetime.min, reverse=True):
+            encounters_out.append({
+                "encounter_id": enc.encounter_id,
+                "created_at": enc.created_at.isoformat() if enc.created_at else None,
+                "doctor_username": enc.doctor_username,
+                "chief_complaint": enc.chief_complaint,
+                "visit_type": enc.visit_type,
+                "note_summary": enc.note_summary,
+                "symptoms": enc.symptoms,
+                "suggested_tests": enc.suggested_tests,
+                "vitals": enc.vitals,
+                "problems": enc.problems,
+                "medications": enc.medications,
+                "past_medical_history": enc.past_medical_history,
+                "prescription": enc.prescription,
+                "approved_by_doctor": enc.approved_by_doctor,
+            })
+
+        # Lab results
+        labs_out = []
+        for lab in patient.lab_results:
+            labs_out.append({
+                "id": lab.id,
+                "test_name": lab.test_name,
+                "result_value": lab.result_value,
+                "unit": lab.unit,
+                "reference_range": lab.reference_range,
+                "status": lab.status,
+                "report_text": lab.report_text,
+                "encounter_id": lab.encounter.encounter_id if lab.encounter else None,
+            })
+
+        # Radiology reports
+        rads_out = []
+        for r in patient.radiology_reports:
+            rads_out.append({
+                "id": r.id,
+                "modality": r.modality,
+                "body_part": r.body_part,
+                "impression": r.impression,
+                "report_text": r.report_text,
+                "encounter_id": r.encounter.encounter_id if r.encounter else None,
+            })
+
+        # Pharmacy orders
+        orders_out = []
+        for o in patient.pharmacy_orders:
+            orders_out.append({
+                "order_id": o.order_id,
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "prescription": o.prescription,
+                "status": o.status,
+                "encounter_id": o.encounter.encounter_id if o.encounter else None,
+            })
+
+        return {
+            "patient_id": patient.patient_id,
+            "exists": True,
+            "demographics": demo,
+            "insurance": ins,
+            "encounters": encounters_out,
+            "lab_results": labs_out,
+            "radiology_reports": rads_out,
+            "pharmacy_orders": orders_out,
+        }
+    finally:
+        db.close()
+
 
 @app.post("/send-to-pharmacy")
 def send_to_pharmacy(req: PharmacySendRequest):
