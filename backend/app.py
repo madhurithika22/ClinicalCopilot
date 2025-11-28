@@ -181,7 +181,6 @@ def human_review(req: HumanReviewRequest):
     state = hil_apply_decision(state, approved=req.approved, doctor_comments=req.doctor_comments)
     return {"message": "Review applied", "state": state.model_dump()}
 
-
 @app.post("/emr-update")
 def emr_update(payload: EMRUpdatePayload):
     result = tool_update_emr(payload.model_dump())
@@ -561,6 +560,9 @@ def dashboard():
     <div id="statusLine" class="status-line"></div>
     <div id="doctorView">
     <!-- Stepper / Carousel header -->
+    <div id="doctorAccessBadge"
+        style="font-size:0.75rem;color:#f87171;margin-left:12px;">
+    </div>
     <div class="stepper">
       <div id="step1Pill" class="step-pill active">
         <span class="index">1</span>
@@ -601,6 +603,9 @@ def dashboard():
         </div>
         <div class="card">
           <h2>Patient EHR Snapshot</h2>
+          <button id="btnRequestAccess" class="btn btn-ghost" style="margin-top:6px;">
+            Request EHR Access
+          </button>
           <div id="ehrDemoBox">
             <p style="font-size:0.8rem;color:#9ca3af;">
               Verify patient face to load EHR demographics & insurance.
@@ -714,13 +719,24 @@ def dashboard():
   <div id="patientView" style="display:none;">
     <div class="card">
       <h2>Patient EMR Portal</h2>
-      <p style="font-size:0.8rem;color:#9ca3af;">
-        You are logged in as a patient. You can view your EMR records, but cannot modify them.
-      </p>
+      <div class="card" style="margin-top:16px;">
+        <h3>Doctor Access Control</h3>
+        <p style="font-size:0.8rem;color:#9ca3af;">
+          Choose which doctors can view your EHR.
+        </p>
+
+        <button id="btnLoadAccessList" class="btn btn-ghost" style="margin-bottom:8px;">
+          Refresh Doctor Access List
+        </button>
+
+        <div id="doctorAccessList" style="font-size:0.8rem;"></div>
+      </div>
       <button id="btnGrantAccess" class="btn btn-primary" style="margin-top:10px;">
         Grant Doctor Access
       </button>
-
+      <p style="font-size:0.8rem;color:#9ca3af;">
+        You are logged in as a patient. You can view your EMR records, but cannot modify them.
+      </p>
       <button id="btnPatientLoadEmr" class="btn btn-primary" style="margin-top:8px;">Refresh My EMR</button>
       <div id="patientEmrList" style="margin-top:10px;max-height:320px;overflow-y:auto;font-size:0.8rem;"></div>
     </div>
@@ -811,11 +827,24 @@ def dashboard():
     const pharmacyOrdersList = document.getElementById("pharmacyOrdersList");
     const ehrDemoBox = document.getElementById("ehrDemoBox");
     const btnGrantAccess = document.getElementById("btnGrantAccess");
+    const btnLoadAccessList = document.getElementById("btnLoadAccessList");
+    const doctorAccessList = document.getElementById("doctorAccessList");
+    const btnRequestAccess = document.getElementById("btnRequestAccess");
     // ---------- Demo users ----------
     const USERS = [
       { username: "doc1",   password: "doc123",    role: "doctor"   },
+      { username: "doc2",   password: "doc123",    role: "doctor"   },
+      { username: "doc3",   password: "doc123",    role: "doctor"   },
       { username: "pat1",   password: "pat123",    role: "patient",  patient_id: "P001" },
       { username: "pat2",   password: "pat123",    role: "patient",  patient_id: "P002" },
+      { username: "pat3",   password: "pat123",    role: "patient",  patient_id: "P003" },
+      { username: "pat4",   password: "pat123",    role: "patient",  patient_id: "P004" },
+      { username: "pat5",   password: "pat123",    role: "patient",  patient_id: "P005" },
+      { username: "pat6",   password: "pat123",    role: "patient",  patient_id: "P006" },
+      { username: "pat7",   password: "pat123",    role: "patient",  patient_id: "P007" },
+      { username: "pat8",   password: "pat123",    role: "patient",  patient_id: "P008" },
+      { username: "pat9",   password: "pat123",    role: "patient",  patient_id: "P009" },
+      { username: "pat10",  password: "pat123",    role: "patient",  patient_id: "P010" },
       { username: "pharma1",password: "pharma123", role: "pharmacy" },
     ];
 
@@ -833,6 +862,45 @@ def dashboard():
     let finalTranscript = "";
 
     // ---------- Helpers ----------
+    if (btnRequestAccess) {
+    btnRequestAccess.onclick = async () => {
+        if (!currentUser || currentRole !== "doctor") return;
+
+        const pid = getPatientId();
+        const uname = currentUser.username;
+
+        const res = await fetch(
+            `/doctor/request-access?patient_id=${pid}&doctor_username=${uname}`,
+            { method: "POST" }
+        );
+        const json = await res.json();
+        setStatus(json.message, "info");
+        };
+    }
+    if (btnLoadAccessList) {
+        btnLoadAccessList.onclick = async () => {
+            const pid = currentUser.patient_id;
+            const res = await fetch(`/patient/access-list?patient_id=${pid}`);
+            const json = await res.json();
+            doctorAccessList.innerHTML = "";
+            json.access_list.forEach(item => {
+                const div = document.createElement("div");
+                div.style.marginBottom = "6px";
+
+                div.innerHTML = `
+                    <b>${item.doctor_username}</b>
+                    <span style="color:${item.is_allowed ? "#4ade80" : "#f87171"};">
+                        (${item.is_allowed ? "Access Granted" : "Access Blocked"})
+                    </span>
+                    <button class="btn btn-primary" style="padding:2px 8px;margin-left:8px;"
+                            onclick="toggleAccess('${pid}', '${item.doctor_username}', ${item.is_allowed})">
+                      ${item.is_allowed ? "Revoke" : "Grant"}
+                    </button>
+                `;
+                doctorAccessList.appendChild(div);
+            });
+        };
+    }
     if (btnGrantAccess) {
         btnGrantAccess.onclick = async () => {
             if (!currentUser || currentRole !== "patient") {
@@ -891,13 +959,30 @@ def dashboard():
           throw new Error("Backend error " + res.status + ": " + err);
         }
         const data = await res.json();
+        if (data.exists) {
+          if (window.currentRole === "doctor") {
+              document.getElementById("doctorAccessBadge").textContent =
+                "✔ Access Granted";
+              document.getElementById("doctorAccessBadge").style.color = "#4ade80";
+          }
+        }
         renderEhrSummary(data);
       } catch (err) {
-        ehrDemoBox.innerHTML = "Error loading EHR: " + err.message;
+      document.getElementById("doctorAccessBadge").textContent ="❌ Access Denied";
+      document.getElementById("doctorAccessBadge").style.color = "#f87171";
+      ehrDemoBox.innerHTML = "Error loading EHR: " + err.message;
       }
     }
 
-
+    async function toggleAccess(pid, doctorUsername, currentlyAllowed) {
+      const endpoint = currentlyAllowed
+        ? `/patient/revoke-access?patient_id=${pid}&doctor_username=${doctorUsername}`
+        : `/patient/grant-access?patient_id=${pid}&doctor_username=${doctorUsername}`;
+        const res = await fetch(endpoint, { method: "POST" });
+        const json = await res.json();
+        setStatus(json.message, "ok");
+        btnLoadAccessList.click();
+    }
 
     function renderEhrSummary(ehr) {
       if (!ehrDemoBox) return;
@@ -1936,7 +2021,6 @@ def check_doctor_allowed(db, patient_db_id: int, doctor_username: str) -> bool:
     )
     return bool(record and record.is_allowed)
 
-
 @app.post("/stt-only")
 async def stt_only(audio: UploadFile = File(...)):
     suffix = os.path.splitext(audio.filename or "")[1] or ".wav"
@@ -2022,6 +2106,38 @@ def approve_emr(req: ApproveEMRRequest):
 
     return {"status": "ok", "emr_record_id": emr_record_id}
 
+@app.get("/patient/access-list")
+def get_access_list(patient_id: str):
+    db = SessionLocal()
+    try:
+        patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
+        if not patient:
+            raise HTTPException(404, "No such patient")
+
+        records = (
+            db.query(PatientDoctorAccess)
+            .filter(PatientDoctorAccess.patient_id == patient.id)
+            .all()
+        )
+
+        out = []
+        for r in records:
+            out.append({
+                "doctor_username": r.doctor_username,
+                "is_allowed": r.is_allowed
+            })
+
+        return {"status": "ok", "access_list": out}
+    finally:
+        db.close()
+
+@app.post("/doctor/request-access")
+def doctor_request_access(patient_id: str, doctor_username: str):
+    # (Later we store request logs — for now we simulate)
+    return {
+        "status": "ok",
+        "message": f"Access request sent to patient {patient_id}"
+    }
 
 @app.get("/ehr/{patient_id}")
 def get_full_ehr(
@@ -2159,7 +2275,6 @@ def get_full_ehr(
     finally:
         db.close()
 
-
 @app.post("/send-to-pharmacy")
 def send_to_pharmacy(req: PharmacySendRequest):
     if not is_patient_authorized(req.patient_id):
@@ -2188,7 +2303,6 @@ def send_to_pharmacy(req: PharmacySendRequest):
         "order_id": order_id,
         "timestamp_utc": ts,
     }
-
 
 @app.post("/verify-patient-face")
 async def verify_patient_face(patient_id: str, image: UploadFile = File(...)):

@@ -673,5 +673,128 @@
     ],
     "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
     "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764313460",
+    "timestamp_utc": "2025-11-28T12:34:20.762061Z",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "CBC",
+      "Liver Function Test (LFT)",
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764313486",
+    "timestamp_utc": "2025-11-28T12:34:46.466808Z",
+    "record_type": "approved_consultation",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764313785",
+    "timestamp_utc": "2025-11-28T12:39:45.910039Z",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "CBC",
+      "Liver Function Test (LFT)",
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764313814",
+    "timestamp_utc": "2025-11-28T12:40:14.355378Z",
+    "record_type": "approved_consultation",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764313956",
+    "timestamp_utc": "2025-11-28T12:42:36.925358Z",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have stomach pain",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "CBC",
+      "Liver Function Test (LFT)",
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have ...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764313975",
+    "timestamp_utc": "2025-11-28T12:42:55.814928Z",
+    "record_type": "approved_consultation",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have stomach pain",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have ...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764313984",
+    "timestamp_utc": "2025-11-28T12:43:04.513220Z",
+    "record_type": "approved_consultation",
+    "patient_id": "P001",
+    "note_summary": "doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have stomach pain",
+    "symptoms": [
+      "abdominal pain"
+    ],
+    "suggested_tests": [
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have ...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
   }
 ]

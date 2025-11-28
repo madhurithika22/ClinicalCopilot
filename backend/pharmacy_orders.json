@@ -70,5 +70,50 @@
       "fever",
       "cough"
     ]
+  },
+  {
+    "order_id": "RX-1764313495",
+    "timestamp_utc": "2025-11-28T12:34:55.274478Z",
+    "status": "queued_demo",
+    "patient_id": "P001",
+    "prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "emr_record_id": "ENC-1764313486",
+    "suggested_tests": [
+      "Stool Routine and Occult Blood"
+    ],
+    "symptoms": [
+      "abdominal pain"
+    ]
+  },
+  {
+    "order_id": "RX-1764313817",
+    "timestamp_utc": "2025-11-28T12:40:17.365711Z",
+    "status": "queued_demo",
+    "patient_id": "P001",
+    "prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "emr_record_id": "ENC-1764313814",
+    "suggested_tests": [
+      "Stool Routine and Occult Blood"
+    ],
+    "symptoms": [
+      "abdominal pain"
+    ]
+  },
+  {
+    "order_id": "RX-1764313985",
+    "timestamp_utc": "2025-11-28T12:43:05.907370Z",
+    "status": "queued_demo",
+    "patient_id": "P001",
+    "prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have ...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "emr_record_id": "ENC-1764313984",
+    "suggested_tests": [
+      "Serum Amylase",
+      "Serum Lipase",
+      "Ultrasound Abdomen",
+      "Stool Routine and Occult Blood"
+    ],
+    "symptoms": [
+      "abdominal pain"
+    ]
   }
 ]
