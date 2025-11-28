@@ -43,5 +43,32 @@
     "symptoms": [
       "abdominal pain"
     ]
+  },
+  {
+    "order_id": "RX-1764289390",
+    "timestamp_utc": "2025-11-28T05:53:10.952506Z",
+    "status": "queued_demo",
+    "patient_id": "P002",
+    "prescription": "Provisional prescription for unspecified symptoms.\nNote summary: I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "emr_record_id": "EMR_APPROVED_00036",
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "Chest X-Ray (PA view)",
+      "CRP",
+      "Sputum Culture and Sensitivity",
+      "COVID-19 RT-PCR",
+      "Sputum AFB (for Tuberculosis)"
+    ],
+    "symptoms": [
+      "fever",
+      "cough"
+    ]
   }
 ]

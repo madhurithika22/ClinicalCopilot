@@ -618,5 +618,60 @@
     ],
     "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
     "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764289378",
+    "timestamp_utc": "2025-11-28T05:52:58.892304Z",
+    "patient_id": "P002",
+    "note_summary": "I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort",
+    "symptoms": [
+      "fever",
+      "cough"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "Chest X-Ray (PA view)",
+      "CRP",
+      "Sputum Culture and Sensitivity",
+      "COVID-19 RT-PCR",
+      "Sputum AFB (for Tuberculosis)"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR_APPROVED_00036",
+    "record_type": "approved_consultation",
+    "patient_id": "P002",
+    "timestamp_utc": "2025-11-28T05:53:06.302639+00:00",
+    "note_summary": "I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort",
+    "symptoms": [
+      "fever",
+      "cough"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "Chest X-Ray (PA view)",
+      "CRP",
+      "Sputum Culture and Sensitivity",
+      "COVID-19 RT-PCR",
+      "Sputum AFB (for Tuberculosis)"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: I have severe cough fever And I'm not able to talk properly I have sore throat please give me some effort...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
   }
 ]

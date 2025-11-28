@@ -48,9 +48,6 @@ app.add_middleware(
 
 @app.post("/trigger-workflow", response_model=TriggerWorkflowResponse)
 def trigger_workflow(req: TriggerWorkflowRequest):
-    """
-    Entry point: simulate a consultation with note_text.
-    """
     init_state = AgentState(
         patient_id=req.patient_id,
         raw_transcript=req.note_text,
@@ -61,11 +58,6 @@ def trigger_workflow(req: TriggerWorkflowRequest):
 
 @app.get("/get-emr")
 def get_emr(patient_id: str):
-    """
-    Return all EMR records for a given patient_id
-    from the local emr_store.json (backend/emr_store.json).
-    Records are sorted by timestamp_utc (newest first).
-    """
     records = []
 
     if EMR_STORE_PATH.exists():
@@ -76,27 +68,18 @@ def get_emr(patient_id: str):
             all_records = []
     else:
         all_records = []
-
-    # Filter by patient_id
     for rec in all_records:
         if rec.get("patient_id") == patient_id:
             records.append(rec)
-
-    # Sort by timestamp_utc descending (newest first)
     def _get_ts(r):
         ts = r.get("timestamp_utc") or r.get("timestamp") or ""
         return ts
-
     records.sort(key=_get_ts, reverse=True)
-
     return records
 
+
 @app.get("/get-pharmacy-orders")
-def get_pharmacy_orders(patient_id: str):
-    """
-    Return all pharmacy orders for a given patient_id
-    from pharmacy_orders.json, sorted newest first.
-    """
+def get_pharmacy_orders(patient_id: Optional[str] = None):
     records = []
 
     if PHARMACY_STORE_PATH.exists():
@@ -108,12 +91,12 @@ def get_pharmacy_orders(patient_id: str):
     else:
         all_orders = []
 
-    # Filter by patient_id
-    for rec in all_orders:
-        if rec.get("patient_id") == patient_id:
-            records.append(rec)
-
-    # Sort by timestamp_utc descending
+    if patient_id:
+        for rec in all_orders:
+            if rec.get("patient_id") == patient_id:
+                records.append(rec)
+    else:
+        records = all_orders
     def _get_ts(r):
         return r.get("timestamp_utc") or ""
 
@@ -121,14 +104,8 @@ def get_pharmacy_orders(patient_id: str):
 
     return records
 
-
 @app.post("/human-review")
 def human_review(req: HumanReviewRequest):
-    """
-    Endpoint for physician to approve or reject suggested actions.
-    """
-    # In a real setup you'd retrieve AgentState from a DB by patient_id
-    # For demo, create a minimal placeholder state
     state = AgentState(patient_id=req.patient_id)
     state = hil_apply_decision(state, approved=req.approved, doctor_comments=req.doctor_comments)
     return {"message": "Review applied", "state": state.model_dump()}
@@ -136,9 +113,6 @@ def human_review(req: HumanReviewRequest):
 
 @app.post("/emr-update")
 def emr_update(payload: EMRUpdatePayload):
-    """
-    Demonstrates EMR update as an MCP-like tool call.
-    """
     result = tool_update_emr(payload.model_dump())
     return {"result": result}
 
@@ -392,6 +366,50 @@ def dashboard():
       font-size: 0.75rem;
       color: #93c5fd;
     }
+    .login-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    .login-card {
+      background: #020617;
+      border-radius: 1rem;
+      padding: 20px 22px;
+      width: 320px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      border: 1px solid #1f2937;
+    }
+
+    .login-card h2 {
+      margin: 0 0 8px 0;
+      font-size: 1.1rem;
+    }
+
+    .login-card label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .login-card input,
+    .login-card select {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.8rem;
+    }
+
     @media (max-width: 768px) {
       header { flex-direction: column; align-items: flex-start; gap: 8px; }
       .step-nav { margin-left: 0; margin-top: 6px; }
@@ -399,17 +417,64 @@ def dashboard():
   </style>
 </head>
 <body>
-  <header>
-    <h1>Agentic Clinical Workflow Copilot</h1>
-    <div class="pill">
-      <span style="color:#9ca3af;font-size:0.75rem;">Patient ID:</span>
-      <input id="patientIdInput" value="P001" />
-    </div>
-  </header>
+<header>
+  <h1>Agentic Clinical Workflow Copilot</h1>
+
+  <div class="pill">
+    <span style="color:#9ca3af;font-size:0.75rem;">Patient ID:</span>
+    <input id="patientIdInput" value="P001" />
+  </div>
+
+  <div class="pill" id="currentUserInfo"
+       style="margin-left:auto;font-size:0.75rem;color:#9ca3af;display:none;">
+    Not logged in
+  </div>
+    <button id="btnLogout" class="btn btn-ghost" style="position:fixed;top:16px;right:16px;font-size:0.7rem;display:none;">
+    Logout
+    </button>
+
+</header>
+<div id="loginModal" class="login-modal">
+  <div class="login-card">
+    <h2>Sign in</h2>
+    <p style="font-size:0.75rem;color:#9ca3af;margin-bottom:12px;">
+      Choose your role and login to access the system.
+    </p>
+
+    <label>
+      Role
+      <select id="roleSelect">
+        <option value="doctor">Doctor</option>
+        <option value="patient">Patient</option>
+        <option value="pharmacy">Pharmacy</option>
+      </select>
+    </label>
+
+    <label>
+      Username
+      <input id="usernameInput" placeholder="e.g. doc1" />
+    </label>
+
+    <label>
+      Password
+      <input id="passwordInput" type="password" placeholder="••••••" />
+    </label>
+
+    <label id="loginPatientRow">
+      Patient ID (for doctor / pharmacy)
+      <input id="loginPatientIdInput" placeholder="e.g. P001" />
+    </label>
+
+    <button id="btnLogin" class="btn btn-primary" style="width:100%;margin-top:8px;">
+      Login
+    </button>
+  </div>
+</div>
+
 
   <main>
     <div id="statusLine" class="status-line"></div>
-
+    <div id="doctorView">
     <!-- Stepper / Carousel header -->
     <div class="stepper">
       <div id="step1Pill" class="step-pill active">
@@ -513,7 +578,7 @@ def dashboard():
           </div>
         </div>
         <div class="card">
-          <h3>🧪 Suggested Investigations</h3>
+          <h3>🧪Suggested Investigations</h3>
           <div id="testList">
             <p style="color:#9ca3af;font-size:0.8rem;">No tests yet. Mention symptoms like "chest pain", "fever", "diabetes".</p>
           </div>
@@ -545,17 +610,47 @@ def dashboard():
       </div>
 
         <div class="card" style="grid-column:1/-1;">
-          <h3>📋 Workflow Timeline (Audit Log)</h3>
+          <h3>Workflow Timeline (Audit Log)</h3>
           <div id="auditLogBox" style="max-height:160px;overflow-y:auto;font-size:0.75rem;color:#e5e7eb;">
             <p style="color:#9ca3af;font-size:0.8rem;">Run a workflow to view events here.</p>
           </div>
         </div>
       </div>
     </section>
-  </main>
+    </div> 
+  <div id="patientView" style="display:none;">
+    <div class="card">
+      <h2>Patient EMR Portal</h2>
+      <p style="font-size:0.8rem;color:#9ca3af;">
+        You are logged in as a patient. You can view your EMR records, but cannot modify them.
+      </p>
+      <button id="btnPatientLoadEmr" class="btn btn-primary" style="margin-top:8px;">Refresh My EMR</button>
+      <div id="patientEmrList" style="margin-top:10px;max-height:320px;overflow-y:auto;font-size:0.8rem;"></div>
+    </div>
+  </div>
 
+  <!-- PHARMACY VIEW: pharmacy orders only -->
+  <div id="pharmacyView" style="display:none;">
+    <div class="card">
+      <h2>Pharmacy Orders Console</h2>
+      <p style="font-size:0.8rem;color:#9ca3af;">
+        You are logged in as pharmacy. You can see doctor-approved prescriptions sent for dispensing.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <span style="font-size:0.75rem;color:#9ca3af;">Filter by Patient ID (optional):</span>
+        <input id="pharmacyPatientFilter" placeholder="P001"
+               style="padding:4px 8px;border-radius:999px;border:none;background:#020617;color:#e5e7eb;font-size:0.75rem;">
+        <button id="btnPharmacyRefresh" class="btn btn-primary" style="font-size:0.75rem;padding:4px 10px;">
+          Refresh Orders
+        </button>
+      </div>
+      <div id="pharmacyOrdersList" style="margin-top:10px;max-height:320px;overflow-y:auto;font-size:0.8rem;"></div>
+    </div>
+  </div>
+
+  </main>
   <script>
-    // ---------- Global State ----------
+    // ---------- Global Elements ----------
     const statusLine = document.getElementById("statusLine");
     const patientIdInput = document.getElementById("patientIdInput");
 
@@ -601,19 +696,61 @@ def dashboard():
     const btnApproveEmr = document.getElementById("btnApproveEmr");
     const btnSendPharmacy = document.getElementById("btnSendPharmacy");
 
+    // Role / login elements
+    const roleSelect = document.getElementById("roleSelect");
+    const usernameInput = document.getElementById("usernameInput");
+    const passwordInput = document.getElementById("passwordInput");
+    const btnLogin = document.getElementById("btnLogin");
+    const btnLogout = document.getElementById("btnLogout");
+    const currentUserInfo = document.getElementById("currentUserInfo");
+    const loginModal = document.getElementById("loginModal");
+    const loginPatientRow = document.getElementById("loginPatientRow");
+    const loginPatientIdInput = document.getElementById("loginPatientIdInput");
+    // Patient & pharmacy portal elements
+    const btnPatientLoadEmr = document.getElementById("btnPatientLoadEmr");
+    const patientEmrList = document.getElementById("patientEmrList");
+    const btnPharmacyRefresh = document.getElementById("btnPharmacyRefresh");
+    const pharmacyPatientFilter = document.getElementById("pharmacyPatientFilter");
+    const pharmacyOrdersList = document.getElementById("pharmacyOrdersList");
+
+    // ---------- Demo users ----------
+    const USERS = [
+      { username: "doc1",   password: "doc123",    role: "doctor"   },
+      { username: "pat1",   password: "pat123",    role: "patient",  patient_id: "P001" },
+      { username: "pat2",   password: "pat123",    role: "patient",  patient_id: "P002" },
+      { username: "pharma1",password: "pharma123", role: "pharmacy" },
+    ];
+
+    // ---------- Global state ----------
+    let currentUser = null;         // { username, role, ... }
+    let currentRole = null;         // "doctor" | "patient" | "pharmacy"
     let patientVerified = false;
-    let currentState = null;
-    let currentStream = null;
+    let currentState = null;        // latest workflow state from backend
+    let currentStream = null;       // camera stream
     let currentSlide = 1;
     let lastApprovedEmrId = null;
 
-    const API_BASE = ""; // same origin
+    let recognition = null;         // browser STT object
+    let listening = false;
+    let finalTranscript = "";
 
-    function setStatus(text, type="info") {
+    // ---------- Helpers ----------
+    roleSelect.onchange = () => {
+      const role = roleSelect.value;
+      if (role === "patient") {
+        loginPatientRow.style.display = "none";
+      } else {
+        loginPatientRow.style.display = "block";
+      }
+    };
+    roleSelect.onchange(); // set initial state
+
+    
+    function setStatus(text, type = "info") {
       statusLine.textContent = text || "";
       statusLine.className = "status-line";
       if (!text) return;
-      if (type === "ok") statusLine.classList.add("status-ok");
+      if (type === "ok")   statusLine.classList.add("status-ok");
       if (type === "warn") statusLine.classList.add("status-warn");
       if (type === "info") statusLine.classList.add("status-info");
     }
@@ -622,7 +759,71 @@ def dashboard():
       return (patientIdInput.value || "").trim();
     }
 
-    // ---------- Slide / Carousel logic ----------
+    function getOrderId(rec) {
+      return rec.order_id || rec.pharmacy_order_id || "";
+    }
+
+    function renderCurrentUserInfo() {
+      if (!currentUser || !currentRole) {
+        currentUserInfo.style.display = "none";
+        currentUserInfo.textContent = "Not logged in";
+        return;
+      }
+
+      currentUserInfo.style.display = "inline-flex";
+
+      let roleLabel = "";
+      if (currentRole === "doctor")   roleLabel = "Doctor";
+      if (currentRole === "patient")  roleLabel = "Patient";
+      if (currentRole === "pharmacy") roleLabel = "Pharmacy";
+
+      let extra = "";
+      if (currentRole === "patient" && currentUser.patient_id) {
+        extra = " · Patient ID: " + currentUser.patient_id;
+      }
+
+      currentUserInfo.textContent = roleLabel + ": " + currentUser.username + extra;
+    }
+
+    function updateRoleUI() {
+      const doctorView = document.getElementById("doctorView");
+      const patientView = document.getElementById("patientView");
+      const pharmacyView = document.getElementById("pharmacyView");
+
+      doctorView.style.display = "none";
+      patientView.style.display = "none";
+      pharmacyView.style.display = "none";
+
+      // Show modal if not logged in
+      if (!currentRole) {
+        loginModal.style.display = "flex";
+        currentUserInfo.style.display = "none";
+        renderCurrentUserInfo();
+        return;
+      }
+
+      // Logged in → hide modal
+      loginModal.style.display = "none";
+
+      if (currentRole === "doctor") {
+        doctorView.style.display = "";
+        patientIdInput.disabled = false;
+        setStatus("Logged in as DOCTOR. Face verification required to access EMR & pharmacy.", "info");
+      } else if (currentRole === "patient") {
+        patientView.style.display = "";
+        patientIdInput.disabled = true;
+        setStatus("Logged in as PATIENT. You can view your EMR anytime.", "info");
+      } else if (currentRole === "pharmacy") {
+        pharmacyView.style.display = "";
+        patientIdInput.disabled = false;
+        setStatus("Logged in as PHARMACY. You can only view pharmacy orders.", "info");
+      }
+
+      renderCurrentUserInfo();
+      currentUserInfo.style.display = "inline-flex";
+    }
+
+
     function updateStepUI() {
       [step1Pill, step2Pill, step3Pill].forEach(p => p.classList.remove("active"));
       [slide1, slide2, slide3].forEach(s => s.classList.remove("active"));
@@ -655,36 +856,32 @@ def dashboard():
       } else if (currentSlide === 2) {
         currentSlide = 3;
       } else {
-        // Slide 3 "Done" – stay there or circle back if you want
         currentSlide = 1;
       }
       updateStepUI();
     }
 
     function goPrev() {
-      if (currentSlide === 2) {
-        currentSlide = 1;
-      } else if (currentSlide === 3) {
-        currentSlide = 2;
-      }
+      if (currentSlide === 2) currentSlide = 1;
+      else if (currentSlide === 3) currentSlide = 2;
       updateStepUI();
     }
 
     btnNext.onclick = goNext;
     btnPrev.onclick = goPrev;
 
-    // when patient changes, reset slide & verification
+    // When patient changes, reset verification + slide
     patientIdInput.addEventListener("input", () => {
       patientVerified = false;
       verifyStatusText.textContent = "Not Verified";
       verifyStatusText.style.color = "#f97373";
       currentSlide = 1;
-      lastApprovedEmrId = null; 
+      lastApprovedEmrId = null;
       updateStepUI();
       setStatus("Patient changed. Please verify face again to unlock next steps.", "info");
     });
 
-    // ---------- Biometric Gate ----------
+    // ---------- Biometric gate ----------
     btnStartCam.onclick = async () => {
       try {
         if (currentStream) {
@@ -703,6 +900,11 @@ def dashboard():
     };
 
     btnVerifyFace.onclick = async () => {
+      if (currentRole !== "doctor") {
+        setStatus("Only doctors can perform face verification.", "warn");
+        return;
+      }
+
       const pid = getPatientId();
       if (!pid) {
         setStatus("Please enter a Patient ID before verifying.", "warn");
@@ -726,7 +928,7 @@ def dashboard():
       formData.append("image", blob, "frame.jpg");
 
       try {
-        const res = await fetch(`/verify-patient-face?patient_id=${encodeURIComponent(pid)}`, {
+        const res = await fetch("/verify-patient-face?patient_id=" + encodeURIComponent(pid), {
           method: "POST",
           body: formData
         });
@@ -753,13 +955,17 @@ def dashboard():
       }
     };
 
-    // ---------- Audio Upload Workflow ----------
+    // ---------- Audio upload workflow ----------
     audioFileInput.onchange = () => {
       const file = audioFileInput.files[0];
       audioFileName.textContent = file ? ("Selected: " + file.name) : "";
     };
 
     btnRunAudio.onclick = async () => {
+      if (currentRole !== "doctor") {
+        setStatus("Only doctors can perform this action.", "warn");
+        return;
+      }
       if (!patientVerified) {
         setStatus("EMR/workflow locked: verify patient face first.", "warn");
         return;
@@ -774,11 +980,13 @@ def dashboard():
         setStatus("Select a WAV file first.", "warn");
         return;
       }
+
       setStatus("Uploading audio and running workflow...", "info");
       const formData = new FormData();
       formData.append("audio", file);
+
       try {
-        const res = await fetch(`/audio-workflow?patient_id=${encodeURIComponent(pid)}`, {
+        const res = await fetch("/audio-workflow?patient_id=" + encodeURIComponent(pid), {
           method: "POST",
           body: formData
         });
@@ -800,8 +1008,12 @@ def dashboard():
       }
     };
 
-    // ---------- Workflow from Transcript ----------
+    // ---------- Workflow from transcript ----------
     async function runWorkflowWithTranscript(text) {
+      if (currentRole !== "doctor") {
+        setStatus("Only doctors can perform this action.", "warn");
+        return;
+      }
       if (!patientVerified) {
         setStatus("EMR/workflow locked: verify patient face first.", "warn");
         return;
@@ -816,6 +1028,7 @@ def dashboard():
         setStatus("Transcript is empty. Speak / type something first.", "warn");
         return;
       }
+
       setStatus("Running workflow on transcript...", "info");
       try {
         const res = await fetch("/trigger-workflow", {
@@ -842,11 +1055,7 @@ def dashboard():
     btnRunFromText.onclick = () => runWorkflowWithTranscript(transcriptBox.value);
     btnRunLiveFromText.onclick = () => runWorkflowWithTranscript(liveTranscriptBox.value);
 
-    // ---------- Browser STT for Live Tab ----------
-    let recognition = null;
-    let listening = false;
-    let finalTranscript = "";
-
+    // ---------- Browser STT (live mic) ----------
     (function initSTT() {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
@@ -893,37 +1102,13 @@ def dashboard():
       finalTranscript = liveTranscriptBox.value || "";
       recognition.start();
     };
+
     btnStopListening.onclick = () => {
       if (!recognition || !listening) return;
       recognition.stop();
     };
-    btnLoadPharmacy.onclick = async () => {
-    if (!patientVerified) {
-      setStatus("Pharmacy data locked: verify patient face first.", "warn");
-      return;
-    }
-    const pid = getPatientId();
-    if (!pid) {
-      setStatus("Enter a Patient ID first.", "warn");
-      return;
-    }
-    setStatus("Loading pharmacy orders...", "info");
-    try {
-      const res = await fetch(`/get-pharmacy-orders?patient_id=${encodeURIComponent(pid)}`);
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error("Backend error " + res.status + ": " + t);
-      }
-      const json = await res.json();
-      renderPharmacyList(json);
-      setStatus("Loaded " + json.length + " pharmacy order(s).", "ok");
-    } catch (err) {
-      console.error(err);
-      setStatus("Error loading pharmacy orders: " + err.message, "warn");
-    }
-  };
 
-    // ---------- EMR viewer ----------
+    // ---------- Doctor: EMR and Pharmacy (per-patient) ----------
     btnLoadEmr.onclick = async () => {
       if (!patientVerified) {
         setStatus("EMR locked: verify patient face first.", "warn");
@@ -936,7 +1121,7 @@ def dashboard():
       }
       setStatus("Loading EMR records...", "info");
       try {
-        const res = await fetch(`/get-emr?patient_id=${encodeURIComponent(pid)}`);
+        const res = await fetch("/get-emr?patient_id=" + encodeURIComponent(pid));
         if (!res.ok) {
           const t = await res.text();
           throw new Error("Backend error " + res.status + ": " + t);
@@ -950,27 +1135,188 @@ def dashboard():
       }
     };
 
+    btnLoadPharmacy.onclick = async () => {
+      if (!patientVerified) {
+        setStatus("Pharmacy data locked: verify patient face first.", "warn");
+        return;
+      }
+      const pid = getPatientId();
+      if (!pid) {
+        setStatus("Enter a Patient ID first.", "warn");
+        return;
+      }
+      setStatus("Loading pharmacy orders...", "info");
+      try {
+        const res = await fetch("/get-pharmacy-orders?patient_id=" + encodeURIComponent(pid));
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error("Backend error " + res.status + ": " + t);
+        }
+        const json = await res.json();
+        renderPharmacyList(json);
+        setStatus("Loaded " + json.length + " pharmacy order(s).", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error loading pharmacy orders: " + err.message, "warn");
+      }
+    };
+
+    // ---------- Patient portal ----------
+    if (btnPatientLoadEmr) {
+      btnPatientLoadEmr.onclick = async () => {
+        if (!currentRole || currentRole !== "patient" || !currentUser) {
+          setStatus("Login as patient to view EMR.", "warn");
+          return;
+        }
+        const pid = currentUser.patient_id;
+        if (!pid) {
+          setStatus("No patient_id bound to this account.", "warn");
+          return;
+        }
+        setStatus("Loading your EMR records...", "info");
+        try {
+          const res = await fetch("/get-emr?patient_id=" + encodeURIComponent(pid));
+          if (!res.ok) {
+            const t = await res.text();
+            throw new Error("Backend error " + res.status + ": " + t);
+          }
+          const json = await res.json();
+          renderPatientEmrList(json);
+          setStatus("Loaded " + json.length + " EMR records.", "ok");
+        } catch (err) {
+          console.error(err);
+          setStatus("Error loading EMR: " + err.message, "warn");
+        }
+      };
+    }
+
+    // ---------- Pharmacy console ----------
+    if (btnPharmacyRefresh) {
+      btnPharmacyRefresh.onclick = async () => {
+        if (!currentRole || currentRole !== "pharmacy") {
+          setStatus("Login as pharmacy to view orders.", "warn");
+          return;
+        }
+
+        const pid = (pharmacyPatientFilter.value || "").trim();
+        setStatus("Loading pharmacy orders...", "info");
+
+        try {
+          let url = "/get-pharmacy-orders";
+          if (pid) {
+            url += "?patient_id=" + encodeURIComponent(pid);
+          }
+          const res = await fetch(url);
+          if (!res.ok) {
+            const t = await res.text();
+            throw new Error("Backend error " + res.status + ": " + t);
+          }
+          const json = await res.json();
+          renderPharmacyOrdersList(json);
+          setStatus("Loaded " + json.length + " pharmacy order(s).", "ok");
+        } catch (err) {
+          console.error(err);
+          setStatus("Error loading pharmacy orders: " + err.message, "warn");
+        }
+      };
+    }
+
+    // ---------- Render helpers ----------
+    function renderPatientEmrList(records) {
+      patientEmrList.innerHTML = "";
+      if (!records || records.length === 0) {
+        patientEmrList.innerHTML =
+          "<p style='font-size:0.8rem;color:#9ca3af;'>No EMR records found for your account.</p>";
+        return;
+      }
+      records.forEach(rec => {
+        const div = document.createElement("div");
+        div.className = "emr-item";
+        const ts = (rec.timestamp_utc || "").replace("T", " ").replace("Z", "");
+        const note = rec.note_summary || "";
+        const shortNote = note.length > 160 ? note.slice(0, 160) + "..." : note;
+        div.innerHTML =
+          "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>" +
+          "<span style='font-family:monospace;color:#38bdf8;font-size:0.8rem;'>" + (rec.emr_record_id || "") + "</span>" +
+          "<span style='font-size:0.7rem;color:#9ca3af;'>" + ts + "</span>" +
+          "</div>" +
+          "<p style='font-size:0.75rem;color:#e5e7eb;'>" + shortNote + "</p>";
+        patientEmrList.appendChild(div);
+      });
+    }
+
+    function renderPharmacyOrdersList(records) {
+      pharmacyOrdersList.innerHTML = "";
+      if (!records || records.length === 0) {
+        pharmacyOrdersList.innerHTML =
+          "<p style='font-size:0.8rem;color:#9ca3af;'>No pharmacy orders found.</p>";
+        return;
+      }
+      records.forEach(rec => {
+        const div = document.createElement("div");
+        div.className = "emr-item";
+        const ts = (rec.timestamp_utc || "").replace("T", " ").replace("Z", "");
+        const status = rec.status || "pending";
+        const pid = rec.patient_id || "";
+        let rxPreview = "";
+        const rx = rec.prescription || rec.draft_prescription || "";
+        if (rx) {
+          const lines = rx.split("\\n");
+          rxPreview = lines.slice(0, 4).join("\\n");
+          if (lines.length > 4) rxPreview += "\\n...";
+        }
+
+        div.innerHTML =
+          "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>" +
+          "<span style='font-family:monospace;color:#fbbf24;font-size:0.8rem;'>" + getOrderId(rec) + "</span>" +
+          "<span style='font-size:0.7rem;color:#9ca3af;'>" + ts + "</span>" +
+          "</div>" +
+          "<p style='font-size:0.75rem;color:#e5e7eb;'><b>Patient:</b> " + pid + "</p>" +
+          "<p style='font-size:0.75rem;color:#e5e7eb;'><b>Status:</b> " + status + "</p>" +
+          (rec.emr_record_id
+            ? "<p style='font-size:0.75rem;color:#9ca3af;'><b>EMR:</b> " + rec.emr_record_id + "</p>"
+            : "");
+
+        if (rxPreview) {
+          const details = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.textContent = "Prescription details";
+          summary.style.cursor = "pointer";
+          summary.style.fontSize = "0.75rem";
+          summary.style.color = "#38bdf8";
+          const pre = document.createElement("pre");
+          pre.textContent = rxPreview;
+          pre.style.marginTop = "4px";
+          details.appendChild(summary);
+          details.appendChild(pre);
+          div.appendChild(details);
+        }
+        pharmacyOrdersList.appendChild(div);
+      });
+    }
+
     function renderEmrList(records) {
       emrList.innerHTML = "";
       if (!records || records.length === 0) {
-        emrList.innerHTML = "<p style='font-size:0.8rem;color:#9ca3af;'>No EMR records yet for this patient.</p>";
+        emrList.innerHTML =
+          "<p style='font-size:0.8rem;color:#9ca3af;'>No EMR records yet for this patient.</p>";
         return;
       }
       records.slice().reverse().forEach(rec => {
         const div = document.createElement("div");
         div.className = "emr-item";
-        const ts = (rec.timestamp_utc || "").replace("T"," ").replace("Z","");
+        const ts = (rec.timestamp_utc || "").replace("T", " ").replace("Z", "");
         const sym = rec.symptoms && rec.symptoms.length ? rec.symptoms.join(", ") : "None";
         const tests = rec.suggested_tests && rec.suggested_tests.length ? rec.suggested_tests.join(", ") : "None";
+        let inner =
+          "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>" +
+          "<span style='font-family:monospace;color:#38bdf8;font-size:0.8rem;'>" + (rec.emr_record_id || "") + "</span>" +
+          "<span style='font-size:0.7rem;color:#9ca3af;'>" + ts + "</span>" +
+          "</div>" +
+          "<p style='font-size:0.8rem;color:#e5e7eb;'><b>Symptoms:</b> " + sym + "</p>" +
+          "<p style='font-size:0.8rem;color:#e5e7eb;'><b>Tests:</b> " + tests + "</p>";
+        div.innerHTML = inner;
 
-        div.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-family:monospace;color:#38bdf8;font-size:0.8rem;">${rec.emr_record_id || ""}</span>
-            <span style="font-size:0.7rem;color:#9ca3af;">${ts}</span>
-          </div>
-          <p style="font-size:0.8rem;color:#e5e7eb;"><b>Symptoms:</b> ${sym}</p>
-          <p style="font-size:0.8rem;color:#e5e7eb;"><b>Tests:</b> ${tests}</p>
-        `;
         if (rec.draft_prescription) {
           const details = document.createElement("details");
           const summary = document.createElement("summary");
@@ -988,85 +1334,82 @@ def dashboard():
         emrList.appendChild(div);
       });
     }
+
     function renderPharmacyList(records) {
-    pharmacyList.innerHTML = "";
-    if (!records || records.length === 0) {
-      pharmacyList.innerHTML =
-        "<p style='font-size:0.8rem;color:#9ca3af;'>No pharmacy orders yet for this patient.</p>";
-      return;
+      pharmacyList.innerHTML = "";
+      if (!records || records.length === 0) {
+        pharmacyList.innerHTML =
+          "<p style='font-size:0.8rem;color:#9ca3af;'>No pharmacy orders yet for this patient.</p>";
+        return;
+      }
+      records.forEach(rec => {
+        const div = document.createElement("div");
+        div.className = "emr-item";
+        const ts = (rec.timestamp_utc || "").replace("T", " ").replace("Z", "");
+        const status = rec.status || "pending";
+        let rxPreview = "";
+        const rx = rec.prescription || rec.draft_prescription || "";
+        if (rx) {
+          const lines = rx.split("\\n");
+          rxPreview = lines.slice(0, 3).join("\\n");
+          if (lines.length > 3) rxPreview += "\\n...";
+        }
+
+        div.innerHTML =
+          "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>" +
+          "<span style='font-family:monospace;color:#fbbf24;font-size:0.8rem;'>" + getOrderId(rec) + "</span>" +
+          "<span style='font-size:0.7rem;color:#9ca3af;'>" + ts + "</span>" +
+          "</div>" +
+          "<p style='font-size:0.75rem;color:#e5e7eb;'><b>Status:</b> " + status + "</p>" +
+          (rec.emr_record_id
+            ? "<p style='font-size:0.75rem;color:#9ca3af;'><b>From EMR:</b> " + rec.emr_record_id + "</p>"
+            : "");
+
+        if (rxPreview) {
+          const details = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.textContent = "Prescription details";
+          summary.style.cursor = "pointer";
+          summary.style.fontSize = "0.75rem";
+          summary.style.color = "#38bdf8";
+          const pre = document.createElement("pre");
+          pre.textContent = rxPreview;
+          pre.style.marginTop = "4px";
+          details.appendChild(summary);
+          details.appendChild(pre);
+          div.appendChild(details);
+        }
+        pharmacyList.appendChild(div);
+      });
     }
 
-    records.forEach((rec) => {
-      const div = document.createElement("div");
-      div.className = "emr-item"; // reuse same style
-
-      const ts = (rec.timestamp_utc || "").replace("T", " ").replace("Z", "");
-      const status = rec.status || "unknown";
-
-      // Show only first few lines of prescription
-      let rxPreview = "";
-      if (rec.prescription) {
-        const lines = rec.prescription.split("\\n");
-        rxPreview = lines.slice(0, 3).join("\\n");
-        if (lines.length > 3) rxPreview += "\\n...";
-      }
-
-      div.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-          <span style="font-family:monospace;color:#fbbf24;font-size:0.8rem;">${rec.order_id || ""}</span>
-          <span style="font-size:0.7rem;color:#9ca3af;">${ts}</span>
-        </div>
-        <p style="font-size:0.75rem;color:#e5e7eb;"><b>Status:</b> ${status}</p>
-        ${
-          rec.emr_record_id
-            ? "<p style='font-size:0.75rem;color:#9ca3af;'><b>From EMR:</b> " +
-              rec.emr_record_id +
-              "</p>"
-            : ""
-        }
-      `;
-
-      if (rxPreview) {
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = "Prescription details";
-        summary.style.cursor = "pointer";
-        summary.style.fontSize = "0.75rem";
-        summary.style.color = "#38bdf8";
-        const pre = document.createElement("pre");
-        pre.textContent = rxPreview;
-        pre.style.marginTop = "4px";
-        details.appendChild(summary);
-        details.appendChild(pre);
-        div.appendChild(details);
-      }
-
-      pharmacyList.appendChild(div);
-    });
-  }
-
-    // ---------- Render State ----------
     function renderState() {
       if (!currentState) {
-        symptomList.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No symptoms yet. Run a workflow.</p>";
-        testList.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No tests yet.</p>";
-        rxBox.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No draft prescription yet.</p>";
+        symptomList.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No symptoms yet. Run a workflow.</p>";
+        testList.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No tests yet.</p>";
+        rxBox.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No draft prescription yet.</p>";
         safetyBox.innerHTML = "";
         emrIdBox.innerHTML = "";
-        auditLogBox.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>Run a workflow to view events here.</p>";
+        auditLogBox.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>Run a workflow to view events here.</p>";
         testsEditBox.value = "";
         rxEditBox.value = "";
         return;
       }
+
       const s = currentState;
 
       // Symptoms
       if (Array.isArray(s.symptoms) && s.symptoms.length > 0) {
-        symptomList.innerHTML = s.symptoms.map(sym =>
-          "<span class='badge'>" + sym + "</span>"
-        ).join(" ");
+        symptomList.innerHTML = s.symptoms
+          .map(sym => "<span class='badge'>" + sym + "</span>")
+          .join(" ");
       } else {
-        symptomList.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No symptoms detected.</p>";
+        symptomList.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No symptoms detected.</p>";
       }
 
       // Tests
@@ -1081,35 +1424,43 @@ def dashboard():
         testList.appendChild(ul);
         testsEditBox.value = s.suggested_tests.join("\\n");
       } else {
-        testList.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No tests suggested.</p>";
+        testList.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No tests suggested.</p>";
         testsEditBox.value = "";
       }
 
-      // Rx
+      // Prescription
       if (s.draft_prescription) {
         rxBox.innerHTML = "<pre>" + s.draft_prescription + "</pre>";
         rxEditBox.value = s.draft_prescription;
       } else {
-        rxBox.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No draft prescription yet.</p>";
+        rxBox.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No draft prescription yet.</p>";
         rxEditBox.value = "";
       }
 
       // Safety
       if (Array.isArray(s.safety_flags) && s.safety_flags.length > 0) {
-        safetyBox.innerHTML = "<p style='font-size:0.75rem;color:#facc15;'><b>⚠ Safety Flags:</b></p>" +
-          "<ul>" + s.safety_flags.map(f => "<li>" + f + "</li>").join("") + "</ul>";
+        safetyBox.innerHTML =
+          "<p style='font-size:0.75rem;color:#facc15;'><b>⚠ Safety Flags:</b></p>" +
+          "<ul>" +
+          s.safety_flags.map(f => "<li>" + f + "</li>").join("") +
+          "</ul>";
       } else {
         safetyBox.innerHTML = "";
       }
 
-      // EMR record id from executed_actions if present
+      // EMR ID from executed_actions
       let emrId = null;
       if (Array.isArray(s.executed_actions)) {
         const emrAction = s.executed_actions.find(a => a && a.action === "update_emr");
         if (emrAction && emrAction.emr_record_id) emrId = emrAction.emr_record_id;
       }
       if (emrId) {
-        emrIdBox.innerHTML = "<span style='font-size:0.75rem;color:#4ade80;'>🗂 EMR stored as <code>" + emrId + "</code></span>";
+        emrIdBox.innerHTML =
+          "<span style='font-size:0.75rem;color:#4ade80;'>🗂 EMR stored as <code>" +
+          emrId +
+          "</code></span>";
       } else {
         emrIdBox.innerHTML = "";
       }
@@ -1126,78 +1477,78 @@ def dashboard():
         });
         auditLogBox.appendChild(ol);
       } else {
-        auditLogBox.innerHTML = "<p style='color:#9ca3af;font-size:0.8rem;'>No audit log entries.</p>";
+        auditLogBox.innerHTML =
+          "<p style='color:#9ca3af;font-size:0.8rem;'>No audit log entries.</p>";
       }
     }
+
+    // ---------- Send to pharmacy (doctor) ----------
     btnSendPharmacy.onclick = async () => {
-    if (!patientVerified) {
-      setStatus("Pharmacy action locked: verify patient face first.", "warn");
-      return;
-    }
-    const pid = getPatientId();
-    if (!pid) {
-      setStatus("Enter a Patient ID first.", "warn");
-      return;
-    }
-    if (!currentState) {
-      setStatus("Run and approve a workflow first.", "warn");
-      return;
-    }
-
-    const rxText = (rxEditBox.value || "").trim();
-    if (!rxText) {
-      setStatus("Prescription text is empty. Please review/edit before sending.", "warn");
-      return;
-    }
-
-    if (!lastApprovedEmrId) {
-      setStatus("No approved EMR found. Please approve the consultation before sending to pharmacy.", "warn");
-      return;
-    }
-
-    const symptoms = Array.isArray(currentState.symptoms)
-      ? currentState.symptoms
-      : [];
-    const testsLines = (testsEditBox.value || "")
-      .split("\\n")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    setStatus("Sending prescription to pharmacy...", "info");
-
-    try {
-      const res = await fetch("/send-to-pharmacy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: pid,
-          prescription: rxText,
-          emr_record_id: lastApprovedEmrId,
-          suggested_tests: testsLines,
-          symptoms: symptoms,
-        }),
-      });
-
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error("Backend error " + res.status + ": " + t);
+      if (currentRole !== "doctor") {
+        setStatus("Only doctors can perform this action.", "warn");
+        return;
+      }
+      if (!patientVerified) {
+        setStatus("Pharmacy action locked: verify patient face first.", "warn");
+        return;
+      }
+      const pid = getPatientId();
+      if (!pid) {
+        setStatus("Enter a Patient ID first.", "warn");
+        return;
+      }
+      if (!currentState) {
+        setStatus("Run and approve a workflow first.", "warn");
+        return;
+      }
+      const rxText = (rxEditBox.value || "").trim();
+      if (!rxText) {
+        setStatus("Prescription text is empty. Please review/edit before sending.", "warn");
+        return;
+      }
+      if (!lastApprovedEmrId) {
+        setStatus("No approved EMR found. Please approve the consultation before sending to pharmacy.", "warn");
+        return;
       }
 
-      const json = await res.json();
-      const orderId = json.order_id || "";
+      const symptoms = Array.isArray(currentState.symptoms) ? currentState.symptoms : [];
+      const testsLines = (testsEditBox.value || "")
+        .split("\\n")
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
 
-      setStatus(
-        "📤 Prescription sent to pharmacy as order " + orderId,
-        "ok"
-      );
-    } catch (err) {
-      console.error(err);
-      setStatus("Error sending to pharmacy: " + err.message, "warn");
-    }
-  };
+      setStatus("Sending prescription to pharmacy...", "info");
+      try {
+        const res = await fetch("/send-to-pharmacy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patient_id: pid,
+            prescription: rxText,
+            emr_record_id: lastApprovedEmrId,
+            suggested_tests: testsLines,
+            symptoms: symptoms
+          })
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error("Backend error " + res.status + ": " + t);
+        }
+        const json = await res.json();
+        const orderId = json.order_id || "";
+        setStatus("📤 Prescription sent to pharmacy as order " + orderId, "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error sending to pharmacy: " + err.message, "warn");
+      }
+    };
 
-    // ---------- Approve & Save EMR ----------
+    // ---------- Approve EMR (doctor) ----------
     btnApproveEmr.onclick = async () => {
+      if (currentRole !== "doctor") {
+        setStatus("Only doctors can perform this action.", "warn");
+        return;
+      }
       if (!patientVerified) {
         setStatus("EMR locked: verify patient face first.", "warn");
         return;
@@ -1214,25 +1565,18 @@ def dashboard():
 
       const noteSummary =
         (currentState.note_summary || currentState.raw_transcript || "").trim();
-
-      const symptoms = Array.isArray(currentState.symptoms)
-        ? currentState.symptoms
-        : [];
-
+      const symptoms = Array.isArray(currentState.symptoms) ? currentState.symptoms : [];
       const testsLines = (testsEditBox.value || "")
         .split("\\n")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
       const rxText = (rxEditBox.value || "").trim();
-
       if (!rxText) {
         setStatus("Prescription text is empty. Please review/edit before approving.", "warn");
         return;
       }
 
       setStatus("Saving approved consultation to EMR...", "info");
-
       try {
         const res = await fetch("/approve-emr", {
           method: "POST",
@@ -1242,25 +1586,20 @@ def dashboard():
             note_summary: noteSummary,
             symptoms: symptoms,
             suggested_tests: testsLines,
-            draft_prescription: rxText,
-          }),
+            draft_prescription: rxText
+          })
         });
-
         if (!res.ok) {
           const t = await res.text();
           throw new Error("Backend error " + res.status + ": " + t);
         }
-
         const json = await res.json();
         const emrId = json.emr_record_id || "";
         lastApprovedEmrId = emrId;
-        setStatus(
-          "✅ Consultation approved and saved to EMR as " + emrId,
-          "ok"
-        );
+        setStatus("Consultation approved and saved to EMR as " + emrId, "ok");
         if (emrId) {
           emrIdBox.innerHTML =
-            "<span style='font-size:0.75rem;color:#4ade80;'>🗂 Approved EMR stored as <code>" +
+            "<span style='font-size:0.75rem;color:#4ade80;'>Approved EMR stored as <code>" +
             emrId +
             "</code></span>";
         }
@@ -1269,24 +1608,87 @@ def dashboard():
         setStatus("Error saving EMR: " + err.message, "warn");
       }
     };
+    btnLogin.onclick = () => {
+      const selectedRole = roleSelect.value;
+      const uname = (usernameInput.value || "").trim();
+      const pwd = (passwordInput.value || "").trim();
+      const loginPid = (loginPatientIdInput.value || "").trim();
 
-    // Init
+      const user = USERS.find(
+        u => u.username === uname && u.password === pwd && u.role === selectedRole
+      );
+
+      if (!user) {
+        setStatus("Invalid credentials for selected role.", "warn");
+        return;
+      }
+
+      if (selectedRole === "doctor" || selectedRole === "pharmacy") {
+        if (!loginPid) {
+          setStatus("Please enter a Patient ID for doctor / pharmacy login.", "warn");
+          return;
+        }
+      }
+
+      currentUser = user;
+      currentRole = user.role;
+
+      // Bind patient ID based on role
+      if (currentRole === "patient" && user.patient_id) {
+        // Patient: locked to their own ID
+        patientIdInput.value = user.patient_id;
+        patientIdInput.disabled = true;
+      } else if (currentRole === "doctor" || currentRole === "pharmacy") {
+        // Doctor / pharmacy: use patient ID from login
+        if (loginPid) {
+          patientIdInput.value = loginPid;
+        }
+        patientIdInput.disabled = false;
+      }
+
+      // Clear login form (optional)
+      passwordInput.value = "";
+      loginPatientIdInput.value = "";
+
+      btnLogout.style.display = "inline-flex";
+
+      updateRoleUI();
+
+      // Auto-load relevant data
+      if (currentRole === "patient" && btnPatientLoadEmr) {
+        btnPatientLoadEmr.click();
+      } else if (currentRole === "pharmacy" && btnPharmacyRefresh) {
+        btnPharmacyRefresh.click();
+      }
+    };
+
+    btnLogout.onclick = () => {
+      currentUser = null;
+      currentRole = null;
+      usernameInput.value = "";
+      passwordInput.value = "";
+      loginPatientIdInput.value = "";
+      patientIdInput.disabled = false;
+
+      btnLogout.style.display = "none";
+
+      setStatus("Logged out. Please login.", "info");
+      updateRoleUI();
+    };
+
+    
+    // ---------- Init ----------
     updateStepUI();
     setStatus("Step 1: Verify patient presence using camera. Then move to Listening Agents.", "info");
+    updateRoleUI();
   </script>
+
 </body>
 </html>
     """
 
-
 @app.post("/stt-only")
 async def stt_only(audio: UploadFile = File(...)):
-    """
-    Lightweight STT endpoint:
-    - receives audio chunk
-    - runs tool_transcribe_voice
-    - returns just the transcript
-    """
     suffix = os.path.splitext(audio.filename or "")[1] or ".wav"
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         file_bytes = await audio.read()
@@ -1304,19 +1706,11 @@ async def stt_only(audio: UploadFile = File(...)):
 
 @app.post("/approve-emr")
 def approve_emr(req: ApproveEMRRequest):
-    """
-    Human-in-the-loop approval endpoint.
-    Called from the UI *after* the doctor reviews/edits tests & prescription.
-    Stores an EMR record with approved_by_doctor = true.
-    """
-    # Biometric gate: same rule – EMR only if patient is verified
     if not is_patient_authorized(req.patient_id):
         raise HTTPException(
             status_code=403,
             detail="Patient face not verified. EMR is locked for this patient."
         )
-
-    # Ensure EMR store exists & load
     records = []
     if EMR_STORE_PATH.exists():
         try:
@@ -1324,8 +1718,6 @@ def approve_emr(req: ApproveEMRRequest):
                 records = json.load(f)
         except Exception:
             records = []
-
-    # Build new EMR record
     emr_record_id = f"EMR_APPROVED_{len(records) + 1:05d}"
     now_utc = datetime.now(timezone.utc).isoformat()
 
@@ -1342,8 +1734,6 @@ def approve_emr(req: ApproveEMRRequest):
     }
 
     records.append(record)
-
-    # Save back
     EMR_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with EMR_STORE_PATH.open("w", encoding="utf-8") as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
@@ -1352,21 +1742,11 @@ def approve_emr(req: ApproveEMRRequest):
 
 @app.post("/send-to-pharmacy")
 def send_to_pharmacy(req: PharmacySendRequest):
-    """
-    Pharmacy Agent endpoint.
-
-    Called from the UI AFTER the doctor has approved the consultation
-    and reviewed the final prescription. This simulates sending
-    an e-prescription order to a pharmacy system.
-    """
-    # Same gate: only if patient face is verified
     if not is_patient_authorized(req.patient_id):
         raise HTTPException(
             status_code=403,
             detail="Patient face not verified. Pharmacy actions are locked for this patient."
         )
-
-    # Use our mock tool to persist an order
     result = tool_send_to_pharmacy(
         {
             "patient_id": req.patient_id,
@@ -1376,24 +1756,22 @@ def send_to_pharmacy(req: PharmacySendRequest):
             "symptoms": req.symptoms,
         }
     )
+    order_id = (
+        result.get("order_id")
+        or result.get("pharmacy_order_id")
+        or result.get("pharmacy_order_id".upper())
+    )
+    ts = result.get("timestamp_utc") or result.get("timestamp") or datetime.now(timezone.utc).isoformat()
 
     return {
-        "status": "ok",
-        "order_id": result["order_id"],
-        "timestamp_utc": result["timestamp_utc"],
+        "status": result.get("status", "ok"),
+        "order_id": order_id,
+        "timestamp_utc": ts,
     }
 
 
 @app.post("/verify-patient-face")
 async def verify_patient_face(patient_id: str, image: UploadFile = File(...)):
-    """
-    Biometric gate (demo-oriented):
-    - Receives a frame from the browser.
-    - Tries to detect at least one face using OpenCV Haarcascade.
-    - On success: authorize patient_id for this session.
-    - On repeated failure: for demo purposes we can choose to still authorize (optional).
-    """
-    # 1) Decode the image
     data = await image.read()
     nparr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -1401,47 +1779,32 @@ async def verify_patient_face(patient_id: str, image: UploadFile = File(...)):
     if img is None:
         print("❌ [verify-patient-face] Failed to decode image from browser.")
         return {"authorized": False, "reason": "Failed to decode image."}
-
-    # 2) Prepare grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
-
-    # 3) Load Haarcascade
     cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     face_cascade = cv2.CascadeClassifier(cascade_path)
 
     if face_cascade.empty():
-        # Cascade not loaded properly – for demo, we can still authorize
         print("⚠️ [verify-patient-face] Cascade file not loaded, running in DEMO MODE.")
         authorize_patient(patient_id)
         return {
             "authorized": True,
             "reason": "Cascade missing, demo mode: auto-authorized patient."
         }
-
-    # 4) Run detection (slightly more lenient parameters)
     faces = face_cascade.detectMultiScale(
         gray,
         scaleFactor=1.1,
-        minNeighbors=3,      # was 5, reduce to detect more easily
-        minSize=(60, 60)     # don't require very large face
+        minNeighbors=3,
+        minSize=(60, 60)
     )
 
-    print(f"🔍 [verify-patient-face] Detected faces count: {len(faces)}")
+    print(f"[verify-patient-face] Detected faces count: {len(faces)}")
 
     if len(faces) == 0:
-        # --- OPTION A: STRICT (real) ---
-        # return {"authorized": False, "reason": "No face detected in frame."}
-
-        # --- OPTION B: DEMO FRIENDLY ---
-        # For project demo, you might prefer to always authorize
-        # if *some* frame is there, to avoid getting stuck.
         authorize_patient(patient_id)
         return {
             "authorized": True,
             "reason": "No clear face detected, but demo override: patient authorized."
         }
-
-    # At least one face found
     authorize_patient(patient_id)
     return {"authorized": True, "reason": "Face detected and patient authorized."}
