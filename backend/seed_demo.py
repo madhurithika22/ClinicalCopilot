@@ -29,9 +29,9 @@ db = SessionLocal()
 patients_data = [
     {
         "patient_id": "P001",
-        "full_name": "Arun Kumar",
+        "full_name": "kripasree",
         "dob": date(1988, 3, 12),
-        "gender": "Male",
+        "gender": "Female",
         "phone": "9876543210",
         "email": "arun@example.com",
         "address": "Coimbatore, Tamil Nadu",
@@ -43,7 +43,7 @@ patients_data = [
     },
     {
         "patient_id": "P002",
-        "full_name": "Meera Chandran",
+        "full_name": "Madhu",
         "dob": date(1994, 7, 25),
         "gender": "Female",
         "phone": "9445566778",
@@ -57,9 +57,9 @@ patients_data = [
     },
     {
         "patient_id": "P003",
-        "full_name": "Rohan S",
+        "full_name": "Nandita",
         "dob": date(2001, 11, 5),
-        "gender": "Male",
+        "gender": "Female",
         "phone": "9003001122",
         "email": "rohan@example.com",
         "address": "Bangalore, Karnataka",
@@ -71,7 +71,7 @@ patients_data = [
     },
     {
         "patient_id": "P004",
-        "full_name": "Divya N",
+        "full_name": "preethi",
         "dob": date(1982, 1, 14),
         "gender": "Female",
         "phone": "9845012345",
@@ -85,9 +85,9 @@ patients_data = [
     },
     {
         "patient_id": "P005",
-        "full_name": "Karthik R",
+        "full_name": "Jenilia",
         "dob": date(1990, 9, 9),
-        "gender": "Male",
+        "gender": "Female",
         "phone": "9090909090",
         "email": "karthik@example.com",
         "address": "Madurai, Tamil Nadu",
@@ -99,7 +99,7 @@ patients_data = [
     },
     {
         "patient_id": "P006",
-        "full_name": "Sneha Raj",
+        "full_name": "Kanishka",
         "dob": date(1997, 5, 2),
         "gender": "Female",
         "phone": "9555567890",

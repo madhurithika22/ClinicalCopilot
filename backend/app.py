@@ -1,5 +1,6 @@
 import os
 from tempfile import NamedTemporaryFile
+from .face_biometrics import enroll_from_image_bytes, verify_from_image_bytes
 import cv2
 import numpy as np
 from pathlib import Path
@@ -2304,8 +2305,71 @@ def send_to_pharmacy(req: PharmacySendRequest):
         "timestamp_utc": ts,
     }
 
+@app.post("/enroll-patient-face")
+async def enroll_patient_face(patient_id: str, image: UploadFile = File(...)):
+    """
+    Enrollment endpoint:
+    - Called once per patient to register their reference face template.
+    - Uses OpenCV + Haar cascade + simple template matching.
+    """
+    data = await image.read()
+    try:
+        info = enroll_from_image_bytes(patient_id, data)
+        return {
+            "status": "ok",
+            "patient_id": patient_id,
+            "template_path": info["template_path"],
+            "shape": info["shape"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/verify-patient-face")
 async def verify_patient_face(patient_id: str, image: UploadFile = File(...)):
+    """
+    Verification endpoint:
+    - Takes a live frame from the doctor's browser
+    - Compares it to stored face template for this patient
+    - On success: calls authorize_patient(patient_id)
+    """
+    data = await image.read()
+
+    result = verify_from_image_bytes(patient_id, data)
+
+    status = result.get("status")
+
+    if status == "no_enrollment":
+        raise HTTPException(
+            status_code=404,
+            detail="No enrolled face found for this patient. Please enroll first."
+        )
+    if status in ("decode_error", "no_face"):
+        return {
+            "authorized": False,
+            "reason": f"Verification failed: {status}",
+            "distance": result.get("distance"),
+            "threshold": result.get("threshold"),
+        }
+
+    if not result["match"]:
+        dist = result.get("distance")
+        return {
+            "authorized": False,
+            "reason": f"Face mismatch (distance={dist:.3f}, threshold={result['threshold']:.3f})",
+            "distance": dist,
+            "threshold": result["threshold"],
+        }
+
+    # ✅ Face matched – unlock EMR & workflow for this patient
+    authorize_patient(patient_id)
+
+    dist = result.get("distance")
+    return {
+        "authorized": True,
+        "reason": f"Face matched (distance={dist:.3f}, threshold={result['threshold']:.3f})",
+        "distance": dist,
+        "threshold": result["threshold"],
+    }
     data = await image.read()
     nparr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
