@@ -8,12 +8,19 @@ import json
 from datetime import datetime
 import speech_recognition as sr
 
-QDRANT_PATH = Path("qdrant_local")  
+QDRANT_PATH = Path(__file__).parent / "qdrant_local"
 QDRANT_PATH.mkdir(exist_ok=True)
 
 _qdrant_client = QdrantClient(
     path=str(QDRANT_PATH),
 )
+
+def get_qdrant_client() -> QdrantClient:
+    """
+    Reuse the single embedded Qdrant client instance,
+    so we don't create multiple clients on the same local folder.
+    """
+    return _qdrant_client
 
 _embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -30,6 +37,7 @@ def _ensure_guideline_collection():
                 distance=Distance.COSINE
             )
         )
+
 
 def rag_query_tool(query: str, top_k: int = 3):
     try:

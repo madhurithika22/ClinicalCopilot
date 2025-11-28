@@ -1,9 +1,6 @@
 import os
 from tempfile import NamedTemporaryFile
 from .face_biometrics import enroll_from_image_bytes, verify_from_image_bytes
-import cv2
-import numpy as np
-from pathlib import Path
 import json
 from datetime import datetime, timezone
 from .auth import authorize_patient, is_patient_authorized
@@ -11,7 +8,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from .state import AgentState
 from .schemas import (
     TriggerWorkflowRequest,
@@ -20,7 +17,7 @@ from .schemas import (
     EMRUpdatePayload,
 )
 from .graph import run_initial_workflow
-from .tools import tool_update_emr, tool_transcribe_voice, EMR_STORE_PATH, tool_send_to_pharmacy, PHARMACY_STORE_PATH
+from .tools import tool_update_emr, tool_transcribe_voice, get_qdrant_client, EMR_STORE_PATH, tool_send_to_pharmacy, PHARMACY_STORE_PATH
 from .nodes.hil_node import hil_apply_decision
 from .db import (
     init_db,
@@ -61,6 +58,77 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/qdrant/collections")
+def qdrant_list_collections():
+    """
+    List all Qdrant collections with basic info.
+    Uses the same embedded client instance as your RAG tool.
+    """
+    client = get_qdrant_client()
+    collections = client.get_collections().collections
+    out: List[Dict[str, Any]] = []
+
+    for c in collections:
+        name = c.name
+        try:
+            info = client.get_collection(name)
+            out.append({
+                "name": name,
+                "vectors_count": info.vectors_count,
+                "status": str(info.status),
+            })
+        except Exception as e:
+            out.append({
+                "name": name,
+                "vectors_count": None,
+                "status": f"error: {e}",
+            })
+    return {"collections": out}
+
+
+@app.get("/qdrant/collection/{name}")
+def qdrant_view_collection(name: str, limit: int = 20):
+    """
+    View up to `limit` points from a given collection.
+    Shows id, payload keys and a short text preview if present.
+    """
+    client = get_qdrant_client()
+
+    try:
+        points, next_offset = client.scroll(
+            collection_name=name,
+            limit=limit,
+            with_payload=True,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading collection: {e}")
+
+    out_points: List[Dict[str, Any]] = []
+    for p in points:
+        payload = p.payload or {}
+        # Try to pick some text field from payload
+        text_field = (
+            payload.get("text")
+            or payload.get("chunk")
+            or payload.get("content")
+            or ""
+        )
+        preview = text_field
+        if isinstance(preview, str) and len(preview) > 200:
+            preview = preview[:200] + "..."
+
+        out_points.append({
+            "id": p.id,
+            "payload_keys": list(payload.keys()),
+            "preview": preview,
+            "payload": payload,  # full payload for debugging
+        })
+
+    return {
+        "collection": name,
+        "count": len(out_points),
+        "points": out_points,
+    }
 
 @app.post("/trigger-workflow", response_model=TriggerWorkflowResponse)
 def trigger_workflow(req: TriggerWorkflowRequest):
@@ -2370,39 +2438,240 @@ async def verify_patient_face(patient_id: str, image: UploadFile = File(...)):
         "distance": dist,
         "threshold": result["threshold"],
     }
-    data = await image.read()
-    nparr = np.frombuffer(data, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    if img is None:
-        print("❌ [verify-patient-face] Failed to decode image from browser.")
-        return {"authorized": False, "reason": "Failed to decode image."}
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.equalizeHist(gray)
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    face_cascade = cv2.CascadeClassifier(cascade_path)
 
-    if face_cascade.empty():
-        print("⚠️ [verify-patient-face] Cascade file not loaded, running in DEMO MODE.")
-        authorize_patient(patient_id)
-        return {
-            "authorized": True,
-            "reason": "Cascade missing, demo mode: auto-authorized patient."
+@app.get("/qdrant-debug", response_class=HTMLResponse)
+def qdrant_debug_page():
+    """
+    Minimal web UI to inspect Qdrant collections & points.
+    """
+    return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Qdrant Debug Viewer</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 1.4rem;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: #020617;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.6);
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+    }
+    li {
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    li:hover {
+      background: #0f172a;
+    }
+    li.active {
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+    }
+    .pill {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+    pre {
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      padding: 8px;
+      font-size: 0.75rem;
+      max-height: 360px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .point {
+      border-bottom: 1px solid #1f2937;
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+    }
+    .point:last-child {
+      border-bottom: none;
+    }
+    code {
+      background: #020617;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #93c5fd;
+    }
+    select, input {
+      background: #020617;
+      color: #e5e7eb;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      outline: none;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      background: #06b6d4;
+      color: #020617;
+      font-weight: 600;
+      box-shadow: 0 8px 18px rgba(8,145,178,0.7);
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Qdrant Debug Viewer</h1>
+  <p style="font-size:0.8rem;color:#9ca3af;">
+    Inspect your local Qdrant collections and see stored guideline chunks / vectors.
+  </p>
+  <div class="layout">
+    <div class="card">
+      <h2 style="font-size:1rem;margin:0 0 6px;">Collections</h2>
+      <button id="btnReloadCols">Reload</button>
+      <ul id="collectionList"></ul>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 id="colTitle" style="font-size:1rem;margin:0;">No collection selected</h2>
+        <div>
+          <span class="pill">Limit</span>
+          <input id="limitInput" type="number" value="20" min="1" max="200" style="width:60px;">
+          <button id="btnReloadPoints">Go</button>
+        </div>
+      </div>
+      <div id="pointsBox" style="margin-top:8px;font-size:0.8rem;color:#e5e7eb;">
+        <p style="color:#9ca3af;font-size:0.8rem;">Select a collection to inspect its points.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const collectionList = document.getElementById("collectionList");
+    const btnReloadCols = document.getElementById("btnReloadCols");
+    const colTitle = document.getElementById("colTitle");
+    const pointsBox = document.getElementById("pointsBox");
+    const limitInput = document.getElementById("limitInput");
+    const btnReloadPoints = document.getElementById("btnReloadPoints");
+
+    let currentCollection = null;
+
+    async function loadCollections() {
+      collectionList.innerHTML = "<li><span class='pill'>Loading collections...</span></li>";
+      try {
+        const res = await fetch("/qdrant/collections");
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t);
         }
-    faces = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=3,
-        minSize=(60, 60)
-    )
-
-    print(f"[verify-patient-face] Detected faces count: {len(faces)}")
-
-    if len(faces) == 0:
-        authorize_patient(patient_id)
-        return {
-            "authorized": True,
-            "reason": "No clear face detected, but demo override: patient authorized."
+        const data = await res.json();
+        const cols = data.collections || [];
+        collectionList.innerHTML = "";
+        if (cols.length === 0) {
+          collectionList.innerHTML = "<li><span class='pill'>No collections found.</span></li>";
+          return;
         }
-    authorize_patient(patient_id)
-    return {"authorized": True, "reason": "Face detected and patient authorized."}
+        cols.forEach(c => {
+          const li = document.createElement("li");
+          li.dataset.name = c.name;
+          li.innerHTML =
+            "<span>" + c.name + "</span>" +
+            "<span class='pill'>" + (c.vectors_count ?? "?") + " pts</span>";
+          li.onclick = () => {
+            currentCollection = c.name;
+            document.querySelectorAll("#collectionList li").forEach(el => el.classList.remove("active"));
+            li.classList.add("active");
+            loadPoints();
+          };
+          collectionList.appendChild(li);
+        });
+      } catch (err) {
+        collectionList.innerHTML = "<li><span class='pill'>Error: " + err.message + "</span></li>";
+      }
+    }
+
+    async function loadPoints() {
+      if (!currentCollection) {
+        pointsBox.innerHTML = "<p style='color:#9ca3af;'>No collection selected.</p>";
+        return;
+      }
+      colTitle.textContent = "Collection: " + currentCollection;
+      const limit = parseInt(limitInput.value || "20", 10) || 20;
+      pointsBox.innerHTML = "<p style='color:#9ca3af;'>Loading points...</p>";
+      try {
+        const res = await fetch("/qdrant/collection/" + encodeURIComponent(currentCollection) + "?limit=" + limit);
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t);
+        }
+        const data = await res.json();
+        const pts = data.points || [];
+        if (pts.length === 0) {
+          pointsBox.innerHTML = "<p style='color:#9ca3af;'>No points in this collection.</p>";
+          return;
+        }
+        pointsBox.innerHTML = "";
+        pts.forEach(p => {
+          const div = document.createElement("div");
+          div.className = "point";
+          const keys = (p.payload_keys || []).join(", ");
+          const preview = p.preview || "";
+          div.innerHTML =
+            "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>" +
+            "<span style='font-family:monospace;color:#38bdf8;font-size:0.8rem;'>ID: " + p.id + "</span>" +
+            "<span class='pill'>Payload: " + keys + "</span>" +
+            "</div>" +
+            (preview
+              ? "<pre>" + preview + "</pre>"
+              : "<p style='color:#9ca3af;font-size:0.75rem;'>No text preview.</p>") +
+            "<details style='margin-top:4px;'>" +
+            "<summary style='font-size:0.75rem;color:#38bdf8;cursor:pointer;'>Full payload</summary>" +
+            "<pre>" + JSON.stringify(p.payload, null, 2) + "</pre>" +
+            "</details>";
+          pointsBox.appendChild(div);
+        });
+      } catch (err) {
+        pointsBox.innerHTML = "<p style='color:#f97373;'>Error loading points: " + err.message + "</p>";
+      }
+    }
+
+    btnReloadCols.onclick = loadCollections;
+    btnReloadPoints.onclick = loadPoints;
+
+    // initial load
+    loadCollections();
+  </script>
+</body>
+</html>
+    """
