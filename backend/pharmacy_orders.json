@@ -115,5 +115,31 @@
     "symptoms": [
       "abdominal pain"
     ]
+  },
+  {
+    "order_id": "RX-1764368578",
+    "timestamp_utc": "2025-11-29T03:52:58.627407Z",
+    "status": "queued_demo",
+    "patient_id": "P006",
+    "prescription": "Provisional prescription for unspecified symptoms.\nNote summary: good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "emr_record_id": "ENC-1764368569",
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "MRI Brain (as indicated)",
+      "CT Brain (Non-contrast, if emergency)",
+      "CBC",
+      "Serum Electrolytes"
+    ],
+    "symptoms": [
+      "fever",
+      "headache"
+    ]
   }
 ]

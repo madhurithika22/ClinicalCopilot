@@ -2328,7 +2328,7 @@ def get_full_ehr(
                 "created_at": o.created_at.isoformat() if o.created_at else None,
                 "prescription": o.prescription,
                 "status": o.status,
-                "encounter_id": o.encounter.encounter_id if o.encounter else None,
+                "encounter_id": o.encounter_id,
             })
 
         return {

@@ -796,5 +796,58 @@
     ],
     "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: doctor I am having stomach pain after eating is it shop for mild pain comfortable avoid spicy food for a few days I'll give you medication if pain persists come back sure thank you Hello Hello I have ...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
     "approved_by_doctor": true
+  },
+  {
+    "emr_record_id": "EMR-1764368547",
+    "timestamp_utc": "2025-11-29T03:52:27.927225Z",
+    "patient_id": "P006",
+    "note_summary": "good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor",
+    "symptoms": [
+      "fever",
+      "headache"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "MRI Brain (as indicated)",
+      "CT Brain (Non-contrast, if emergency)",
+      "CBC",
+      "Serum Electrolytes"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.\n",
+    "safety_flags": []
+  },
+  {
+    "emr_record_id": "EMR-1764368569",
+    "timestamp_utc": "2025-11-29T03:52:49.465558Z",
+    "record_type": "approved_consultation",
+    "patient_id": "P006",
+    "note_summary": "good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor",
+    "symptoms": [
+      "fever",
+      "headache"
+    ],
+    "suggested_tests": [
+      "CBC with Differential",
+      "C-Reactive Protein (CRP)",
+      "ESR",
+      "Dengue NS1 / IgM",
+      "Malaria Smear / Rapid Test",
+      "Blood Culture",
+      "Urine Routine and Microscopy",
+      "Procalcitonin",
+      "MRI Brain (as indicated)",
+      "CT Brain (Non-contrast, if emergency)",
+      "CBC",
+      "Serum Electrolytes"
+    ],
+    "draft_prescription": "Provisional prescription for unspecified symptoms.\nNote summary: good morning doctor I've been feeling tired for the past week good morning do you have headache for fever just weakness and less appetite blood test don't worry we'll find the cause thank you doctor...\n\nMedications:\n- (To be decided by physician)\n\nInstructions:\n- Follow up if symptoms worsen.",
+    "approved_by_doctor": true
   }
 ]
